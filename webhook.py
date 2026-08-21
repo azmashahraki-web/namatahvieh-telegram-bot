@@ -92,6 +92,12 @@ def configure_webhook():
 
 
 if __name__ == "__main__":
+    if os.getenv("AI_SELFTEST", "0") == "1":
+        try:
+            import ai_smoketest
+            ai_smoketest.run()
+        except Exception as e:
+            print("AI self-test: FAIL", type(e).__name__, flush=True)
     configure_webhook()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"HTTP server listening on {PORT}", flush=True)
