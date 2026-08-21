@@ -5,6 +5,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import bot
 
+try:
+    import ai_assistant
+    ai_assistant.install(bot)
+except Exception as e:
+    print("AI extension failed to load:", repr(e), flush=True)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
