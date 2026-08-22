@@ -38,9 +38,25 @@ def install(bot):
         p = str(bot.cfg("ai_provider", DEFAULT_PROVIDER) or DEFAULT_PROVIDER).strip().lower()
         return p if p in ("gemini", "openai") else "gemini"
 
+    def gemini_key():
+        if GEMINI_API_KEY:
+            return GEMINI_API_KEY
+        try:
+            x = aidb("secret_get", {"name": "gemini_api_key"})
+            return (x or {}).get("value", "")
+        except Exception:
+            return ""
+
+    def gemini_secret_exists():
+        try:
+            x = aidb("secret_exists", {"name": "gemini_api_key"})
+            return bool((x or {}).get("exists"))
+        except Exception:
+            return False
+
     def provider_ready(provider=None):
         p = provider or current_provider()
-        return bool(GEMINI_API_KEY) if p == "gemini" else bool(OPENAI_API_KEY)
+        return bool(gemini_key()) if p == "gemini" else bool(OPENAI_API_KEY)
 
     def provider_model(provider=None):
         p = provider or current_provider()
@@ -122,8 +138,8 @@ def install(bot):
             raise RuntimeError("OpenAI returned no text")
         return answer
 
-    def ask_gemini(instructions, input_text):
-        if not GEMINI_API_KEY:
+    def ask_gemini_with_key(key, instructions, input_text):
+        if not key:
             raise RuntimeError("GEMINI_API_KEY missing")
         payload = {
             "system_instruction": {"parts": [{"text": instructions}]},
@@ -139,7 +155,7 @@ def install(bot):
             data=json.dumps(payload, ensure_ascii=False).encode(),
             headers={
                 "Content-Type": "application/json",
-                "x-goog-api-key": GEMINI_API_KEY,
+                "x-goog-api-key": key,
             },
         )
         try:
@@ -165,6 +181,24 @@ def install(bot):
                 pass
             raise RuntimeError("Gemini returned no text" + (f": {reason}" if reason else ""))
         return answer
+
+    def ask_gemini(instructions, input_text):
+        return ask_gemini_with_key(gemini_key(), instructions, input_text)
+
+    def test_gemini_key(key):
+        try:
+            answer = ask_gemini_with_key(
+                (key or "").strip(),
+                "تو فقط برای تست اتصال هستی. پاسخ بسیار کوتاه بده.",
+                "فقط بنویس OK",
+            )
+            return True, answer[:80]
+        except Exception as e:
+            msg = str(e).replace("\n", " ")[:350]
+            return False, msg
+
+    def store_gemini_key(key):
+        return aidb("secret_set", {"name": "gemini_api_key", "value": (key or "").strip()})
 
     def ask_model(instructions, input_text):
         p = current_provider()
@@ -373,8 +407,11 @@ def install(bot):
     bot.handle_callback = handle_callback
     bot.ai_enabled = ai_enabled
     bot.ai_provider = current_provider
+    bot.ai_store_gemini_key = store_gemini_key
+    bot.ai_test_gemini_key = test_gemini_key
+    bot.ai_gemini_secret_exists = gemini_secret_exists
     print(
         f"AI extension loaded. provider={current_provider()}, model={provider_model()}, "
-        f"gemini_key={'yes' if GEMINI_API_KEY else 'no'}, openai_key={'yes' if OPENAI_API_KEY else 'no'}",
+        f"gemini_key={'yes' if gemini_secret_exists() or GEMINI_API_KEY else 'no'}, openai_key={'yes' if OPENAI_API_KEY else 'no'}",
         flush=True,
     )
