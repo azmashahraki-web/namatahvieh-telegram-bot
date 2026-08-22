@@ -3,7 +3,10 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-AI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip() or "gemini-2.5-flash-lite"
+DEFAULT_PROVIDER = os.getenv("AI_PROVIDER", "gemini").strip().lower() or "gemini"
 
 STOPWORDS = {
     "برای","این","اون","آن","من","تو","شما","که","را","با","از","به","در","و","یا","یک","چه","چطور","چقدر",
@@ -31,8 +34,21 @@ def install(bot):
             detail = e.read().decode(errors="replace")
             raise RuntimeError(f"AI DB {e.code}: {detail[:500]}")
 
+    def current_provider():
+        p = str(bot.cfg("ai_provider", DEFAULT_PROVIDER) or DEFAULT_PROVIDER).strip().lower()
+        return p if p in ("gemini", "openai") else "gemini"
+
+    def provider_ready(provider=None):
+        p = provider or current_provider()
+        return bool(GEMINI_API_KEY) if p == "gemini" else bool(OPENAI_API_KEY)
+
+    def provider_model(provider=None):
+        p = provider or current_provider()
+        return GEMINI_MODEL if p == "gemini" else OPENAI_MODEL
+
     def ai_enabled():
-        return bool(OPENAI_API_KEY) and str(bot.cfg("ai_enabled", "1")).lower() not in ("0", "false", "off", "no")
+        enabled = str(bot.cfg("ai_enabled", "1")).lower() not in ("0", "false", "off", "no")
+        return enabled and provider_ready()
 
     def words(text):
         return {w for w in re.findall(r"[\w\u0600-\u06FF]+", (text or "").lower()) if len(w) > 2 and w not in STOPWORDS}
@@ -74,7 +90,7 @@ def install(bot):
         if not OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY missing")
         payload = {
-            "model": AI_MODEL,
+            "model": OPENAI_MODEL,
             "instructions": instructions,
             "input": input_text,
             "max_output_tokens": 700,
@@ -106,9 +122,61 @@ def install(bot):
             raise RuntimeError("OpenAI returned no text")
         return answer
 
+    def ask_gemini(instructions, input_text):
+        if not GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY missing")
+        payload = {
+            "system_instruction": {"parts": [{"text": instructions}]},
+            "contents": [{"role": "user", "parts": [{"text": input_text}]}],
+            "generationConfig": {
+                "maxOutputTokens": 700,
+                "temperature": 0.35,
+            },
+        }
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+        req = Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": GEMINI_API_KEY,
+            },
+        )
+        try:
+            with urlopen(req, timeout=75) as r:
+                data = json.loads(r.read().decode())
+        except HTTPError as e:
+            detail = e.read().decode(errors="replace")
+            raise RuntimeError(f"Gemini {e.code}: {detail[:500]}")
+        texts = []
+        for cand in data.get("candidates", []) or []:
+            content = cand.get("content") or {}
+            for part in content.get("parts", []) or []:
+                if part.get("text"):
+                    texts.append(part["text"])
+            if texts:
+                break
+        answer = "\n".join(texts).strip()
+        if not answer:
+            reason = ""
+            try:
+                reason = (data.get("promptFeedback") or {}).get("blockReason") or ""
+            except Exception:
+                pass
+            raise RuntimeError("Gemini returned no text" + (f": {reason}" if reason else ""))
+        return answer
+
+    def ask_model(instructions, input_text):
+        p = current_provider()
+        if p == "gemini":
+            return ask_gemini(instructions, input_text)
+        return ask_openai(instructions, input_text)
+
     def ai_answer(uid, chat_id, question):
         if not ai_enabled():
-            bot.send(chat_id, "🤖 دستیار هوشمند هنوز فعال نشده است. فعلاً از منوی فروش استفاده کن.", original_main_menu(uid))
+            p = current_provider()
+            label = "Gemini" if p == "gemini" else "OpenAI"
+            bot.send(chat_id, f"🤖 دستیار هوشمند فعلاً فعال نیست. اتصال {label} هنوز کامل نشده است.", original_main_menu(uid))
             return
         try:
             bot.api("sendChatAction", {"chat_id": chat_id, "action": "typing"}, timeout=10)
@@ -140,7 +208,7 @@ def install(bot):
 
 پیام جدید مشتری:
 {question}"""
-            answer = ask_openai(instructions, input_text)
+            answer = ask_model(instructions, input_text)
             aidb("history_append", {"telegram_id": uid, "role": "user", "content": question})
             aidb("history_append", {"telegram_id": uid, "role": "assistant", "content": answer})
             bot.send(chat_id, "🤖 " + answer)
@@ -218,12 +286,26 @@ def install(bot):
                 return bot.send(chat_id, "مثال: /forget 12")
             aidb("knowledge_delete", {"id": int(n)})
             return bot.send(chat_id, "✅ آن آموزش غیرفعال شد.")
+        if text.startswith("/ai_provider"):
+            bot.ensure_user(u)
+            if not bot.is_owner(uid):
+                return
+            p = text.split(maxsplit=1)
+            if len(p) < 2 or p[1].strip().lower() not in ("gemini", "openai"):
+                return bot.send(chat_id, "مثال: /ai_provider gemini")
+            provider = p[1].strip().lower()
+            bot.setcfg("ai_provider", provider)
+            ready = provider_ready(provider)
+            label = "Gemini" if provider == "gemini" else "OpenAI"
+            return bot.send(chat_id, f"✅ موتور هوش مصنوعی روی {label} تنظیم شد." + ("" if ready else "\nکلید این سرویس هنوز روی سرور تنظیم نشده است."))
         if text == "/ai_on":
             bot.ensure_user(u)
             if not bot.is_owner(uid):
                 return
             bot.setcfg("ai_enabled", "1")
-            return bot.send(chat_id, "✅ پاسخ‌گویی هوشمند روشن شد." if OPENAI_API_KEY else "تنظیم روشن شد، اما هنوز کلید OpenAI روی سرور وارد نشده است.")
+            p = current_provider()
+            label = "Gemini" if p == "gemini" else "OpenAI"
+            return bot.send(chat_id, "✅ پاسخ‌گویی هوشمند روشن شد." if provider_ready() else f"تنظیم روشن شد، اما هنوز کلید {label} روی سرور وارد نشده است.")
         if text == "/ai_off":
             bot.ensure_user(u)
             if not bot.is_owner(uid):
@@ -249,7 +331,9 @@ def install(bot):
                 return
             x = bot.db("stats")
             state = "فعال ✅" if ai_enabled() else "غیرفعال ⛔"
-            return bot.send(chat_id, f'📊 داشبورد فروش\n\n👥 کاربران: {x["users"]}\n✅ اعضای تأییدشده: {x["verified"]}\n🎁 معرفی موفق: {x["referrals"]}\n🔥 لید فروش: {x["leads"]}\n🤖 AI: {state}\nمدل: {AI_MODEL}\n\nمدیریت دانش: /teach ، /knowledge ، /forget\nروشن/خاموش AI: /ai_on ، /ai_off')
+            p = current_provider()
+            label = "Gemini" if p == "gemini" else "OpenAI"
+            return bot.send(chat_id, f'📊 داشبورد فروش\n\n👥 کاربران: {x["users"]}\n✅ اعضای تأییدشده: {x["verified"]}\n🎁 معرفی موفق: {x["referrals"]}\n🔥 لید فروش: {x["leads"]}\n🤖 AI: {state}\nموتور: {label}\nمدل: {provider_model(p)}\n\nمدیریت دانش: /teach ، /knowledge ، /forget\nروشن/خاموش AI: /ai_on ، /ai_off\nتغییر موتور: /ai_provider gemini یا openai')
 
         if text.startswith("/"):
             return original_handle_text(msg)
@@ -279,11 +363,18 @@ def install(bot):
                 pass
             if ai_enabled():
                 return bot.send(chat_id, "🤖 هر سؤال آزادی درباره خرید، کولر گازی، لوازم خانگی، انتخاب محصول یا خدمات فروشگاه داری همین‌جا بنویس.")
-            return bot.send(chat_id, "دستیار هوشمند آماده است، اما هنوز کلید OpenAI روی سرور وارد نشده است.", main_menu(uid))
+            p = current_provider()
+            label = "Gemini" if p == "gemini" else "OpenAI"
+            return bot.send(chat_id, f"دستیار هوشمند آماده است، اما اتصال {label} هنوز کامل نشده است.", main_menu(uid))
         return original_handle_callback(cb)
 
     bot.main_menu = main_menu
     bot.handle_text = handle_text
     bot.handle_callback = handle_callback
     bot.ai_enabled = ai_enabled
-    print(f"AI extension loaded. model={AI_MODEL}, key={'yes' if OPENAI_API_KEY else 'no'}", flush=True)
+    bot.ai_provider = current_provider
+    print(
+        f"AI extension loaded. provider={current_provider()}, model={provider_model()}, "
+        f"gemini_key={'yes' if GEMINI_API_KEY else 'no'}, openai_key={'yes' if OPENAI_API_KEY else 'no'}",
+        flush=True,
+    )
