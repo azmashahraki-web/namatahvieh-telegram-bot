@@ -37,10 +37,7 @@ async function verifyHesabfaCredentials() {
       throw new Error(`non-JSON response (HTTP ${response.status})`);
     }
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     if (payload?.Success === false || (!payload?.Success && payload?.ErrorCode)) {
       const code = payload?.ErrorCode ?? 'unknown';
       throw new Error(`API error ${code}`);
@@ -54,4 +51,4 @@ async function verifyHesabfaCredentials() {
 }
 
 await verifyHesabfaCredentials();
-await import('./index.js');
+await import('./auth-proxy.js');
