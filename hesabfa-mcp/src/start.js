@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const API_BASE = process.env.HESABFA_API_BASE || 'https://api.hesabfa.com/v1';
 
 async function verifyHesabfaCredentials() {
@@ -50,5 +52,17 @@ async function verifyHesabfaCredentials() {
   }
 }
 
+function configureDerivedOAuthSigningSecret() {
+  if (process.env.OAUTH_SIGNING_SECRET) return;
+  const apiKey = process.env.HESABFA_API_KEY;
+  const loginToken = process.env.HESABFA_LOGIN_TOKEN;
+  if (!apiKey || !loginToken) return;
+  process.env.OAUTH_SIGNING_SECRET = crypto
+    .createHash('sha256')
+    .update(`hesabfa-mcp-oauth-v1\0${apiKey}\0${loginToken}`)
+    .digest('base64url');
+}
+
 await verifyHesabfaCredentials();
+configureDerivedOAuthSigningSecret();
 await import('./auth-proxy.js');
