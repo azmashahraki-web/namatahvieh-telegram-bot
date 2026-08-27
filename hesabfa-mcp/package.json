@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Read-only MCP bridge for Hesabfa accounting data",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/start.js"
   },
   "engines": {
     "node": ">=20"
