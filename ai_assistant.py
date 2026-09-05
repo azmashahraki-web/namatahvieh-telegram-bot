@@ -410,8 +410,5 @@ def install(bot):
     bot.ai_store_gemini_key = store_gemini_key
     bot.ai_test_gemini_key = test_gemini_key
     bot.ai_gemini_secret_exists = gemini_secret_exists
-    print(
-        f"AI extension loaded. provider={current_provider()}, model={provider_model()}, "
-        f"gemini_key={'yes' if gemini_secret_exists() or GEMINI_API_KEY else 'no'}, openai_key={'yes' if OPENAI_API_KEY else 'no'}",
-        flush=True,
-    )
+    bot.ai_connection_check = lambda: bool(ask_model("Reply only OK. This is a connectivity test.", "OK"))
+    print("AI extension installed.", flush=True)

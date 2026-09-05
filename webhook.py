@@ -1,8 +1,10 @@
 import html
 import json
 import os
+import re
 import secrets
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -14,6 +16,9 @@ try:
 except Exception as e:
     print("AI extension failed to load:", repr(e), flush=True)
 
+import channel_access
+channel_access.install(bot)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
@@ -24,6 +29,10 @@ def dispatch(update):
     try:
         if "callback_query" in update:
             bot.handle_callback(update["callback_query"])
+        elif "chat_member" in update:
+            bot.handle_chat_member(update["chat_member"])
+        elif "chat_join_request" in update:
+            bot.handle_chat_join_request(update["chat_join_request"])
         elif "message" in update:
             m = update["message"]
             if "contact" in m:
@@ -171,7 +180,7 @@ def configure_webhook():
         if WEBHOOK_URL:
             data = {
                 "url": WEBHOOK_URL + "/telegram",
-                "allowed_updates": ["message", "callback_query"],
+                "allowed_updates": channel_access.ALLOWED_UPDATES,
                 "drop_pending_updates": False,
             }
             if WEBHOOK_SECRET:
@@ -180,12 +189,28 @@ def configure_webhook():
             print("Webhook configured:", WEBHOOK_URL + "/telegram", flush=True)
         else:
             print("WEBHOOK_URL is missing; webhook not configured yet.", flush=True)
+        bot.configure_customer_profile()
+        enabled = bool(hasattr(bot, "ai_enabled") and bot.ai_enabled())
+        print("AI enabled:", enabled, flush=True)
+        # A single small request per deployed revision; no customer messages or history writes.
+        revision = os.getenv("RENDER_GIT_COMMIT", "")
+        if enabled and revision and bot.cfg("ai_checked_revision") != revision:
+            result = "failed"
+            try:
+                result = "passed" if bot.ai_connection_check() else "failed"
+            except Exception as exc:
+                code = re.match(r"^(Gemini|OpenAI) (\d{3}):", str(exc))
+                result = "failed:" + (code.group(2) if code else type(exc).__name__)
+            bot.setcfg("ai_connection_check", result)
+            bot.setcfg("ai_checked_revision", revision)
+            bot.setcfg("ai_checked_at", int(time.time()))
+            print("AI connection check:", result, flush=True)
     except Exception as e:
         print("Webhook configuration failed:", repr(e), flush=True)
 
 
 if __name__ == "__main__":
-    configure_webhook()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    threading.Thread(target=configure_webhook, daemon=True).start()
     print(f"HTTP server listening on {PORT}", flush=True)
     server.serve_forever()
