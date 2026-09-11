@@ -1,11 +1,12 @@
 {
   "name": "hesabfa-readonly-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Read-only MCP bridge for Hesabfa accounting data",
   "scripts": {
-    "start": "node src/start.js"
+    "start": "node src/start.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

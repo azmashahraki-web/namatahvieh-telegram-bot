@@ -4,6 +4,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { userLogStatus } from './user-logs.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const INTERNAL_PORT = 3001;
@@ -142,6 +143,7 @@ app.get('/health', (_req, res) => res.json({
   hesabfaCredentialsConfigured: Boolean(process.env.HESABFA_API_KEY && process.env.HESABFA_LOGIN_TOKEN),
   oauthSigningConfigured: Boolean(process.env.OAUTH_SIGNING_SECRET),
   linkPasswordConfigured: Boolean(process.env.CHATGPT_LINK_PASSWORD),
+  userLogsConfigured: userLogStatus().configured,
   internalMcpAlive: !child.killed,
   resource: RESOURCE
 }));

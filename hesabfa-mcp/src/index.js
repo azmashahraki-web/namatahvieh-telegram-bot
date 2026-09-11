@@ -2,6 +2,7 @@ import { createMcpExpressApp } from '@modelcontextprotocol/express';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { getUserLogs, userLogStatus } from './user-logs.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const HESABFA_API_BASE = process.env.HESABFA_API_BASE || 'https://api.hesabfa.com/v1';
@@ -98,7 +99,7 @@ const readAnnotations = {
 function buildServer() {
   const server = new McpServer({
     name: 'hesabfa-readonly',
-    version: '1.0.0'
+    version: '1.1.0'
   });
 
   const noArgs = (name, title, description, method) => {
@@ -119,6 +120,33 @@ function buildServer() {
   noArgs('hesabfa_projects', 'Hesabfa projects', 'List projects defined in Hesabfa.', 'setting/getProjects');
   noArgs('hesabfa_salesmen', 'Hesabfa salespeople', 'List salespeople defined in Hesabfa.', 'setting/getSalesmen');
   noArgs('hesabfa_currency', 'Hesabfa currency', 'Read currency settings from Hesabfa.', 'setting/getCurrency');
+
+  server.registerTool('hesabfa_user_logs_status', {
+    title: 'Hesabfa user log connection status',
+    description: 'Check whether the separate Hesabfa website session for user activity logs is configured. This does not validate the live session. Never ask for credentials in chat.',
+    annotations: readAnnotations
+  }, async () => toolResult(userLogStatus()));
+
+  server.registerTool('hesabfa_user_logs', {
+    title: 'Hesabfa user activity logs',
+    description: 'Read actual user activity logs, including timestamp, user, action, title and description. Requires the separately configured website session. Dates must be Gregorian YYYY-MM-DD or ISO timestamps; date-only and unzoned timestamps use Iran time. Maximum 31 days per request. Follow nextSkip until null for a complete report. Preserve original timestamps. Authentication errors never mean there was no activity. Never pass or request cookies or credentials as tool inputs.',
+    inputSchema: z.object({
+      start: z.string().min(10).max(40),
+      end: z.string().min(10).max(40),
+      userId: z.string().max(200).optional().default(''),
+      skip: z.number().int().min(0).max(1000000).optional().default(0),
+      take: z.number().int().min(1).max(100).optional().default(50)
+    }).strict(),
+    annotations: readAnnotations
+  }, async (args) => {
+    try {
+      const result = await enqueueApiCall(() => getUserLogs(args));
+      // Preserve complete rows and pagination; the generic helper truncates JSON.
+      return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+    } catch (error) {
+      return toolError(new Error(`${error.code || 'USER_LOG_ERROR'}: ${error.message}`));
+    }
+  });
 
   server.registerTool('hesabfa_item', {
     title: 'Get Hesabfa item',
@@ -237,4 +265,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Hesabfa read-only bridge listening on port ${PORT}`);
   console.log(`MCP enabled: ${MCP_ENABLED}`);
   console.log(`Hesabfa credentials configured: ${credentialsConfigured()}`);
+  console.log(`Hesabfa user logs: ${userLogStatus().code}`);
 });
