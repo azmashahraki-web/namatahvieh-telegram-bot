@@ -9,7 +9,26 @@ test('diagnostics identify a preflight request without disclosing its content', 
   assert.equal(result.method, 'OPTIONS');
   assert.equal(result.cookieField, false);
   assert.equal(result.configured, false);
+  assert.equal(result.requestKind, 'USER_LOG_REPORT');
+  assert.equal(result.reason, 'WRONG_METHOD');
   assert.doesNotMatch(JSON.stringify(result), /synthetic-secret/);
+});
+
+test('diagnostics distinguish the copied asset, report page, and report without exposing private URL data', () => {
+  const cases = [
+    ['https://app.hesabfa.com/styles.private-name.css?token=private-url-token', 'HESABFA_STYLESHEET'],
+    ['https://app.hesabfa.com/app/private-business-key/users-log', 'HESABFA_REPORT_PAGE'],
+    ['https://core.hesabfa.com/api/report/getUserLog?token=private-url-token', 'VARIANT_USER_LOG_URL'],
+    ['https://private-user:private-password@core.hesabfa.com/api/report/getUserLog', 'INVALID_URL'],
+    ['https://private-host.example/private-path', 'OTHER_HOST']
+  ];
+  for (const [url, kind] of cases) {
+    const result = userLogDiagnostics({ HESABFA_USER_LOG_CURL: `curl '${url}' -b 'session=private-cookie'` });
+    assert.equal(result.requestKind, kind);
+    assert.equal(result.configured, false);
+    assert.doesNotMatch(JSON.stringify(result), /private-|https:\/\//);
+  }
+  assert.equal(userLogDiagnostics(env).requestKind, 'USER_LOG_REPORT');
 });
 
 test('a configured live check queries recent Iran dates and logs no rows or credentials', async () => {

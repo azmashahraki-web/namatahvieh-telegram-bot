@@ -1,5 +1,21 @@
 import { USER_LOG_URL, getUserLogs, userLogStatus } from './user-logs.js';
 
+function copiedRequestKind(raw) {
+  const match = /^curl(?:\.exe)?\s+(?:--url\s+)?(?:'([^']*)'|"([^"]*)"|(\S+))/.exec(raw);
+  if (!match) return 'UNKNOWN';
+  let url;
+  try { url = new URL(match[1] ?? match[2] ?? match[3]); }
+  catch { return 'INVALID_URL'; }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return 'INVALID_URL';
+  if (url.href === USER_LOG_URL) return 'USER_LOG_REPORT';
+  if (url.hostname === 'core.hesabfa.com' && /getUserLog/i.test(url.pathname)) return 'VARIANT_USER_LOG_URL';
+  if (!['app.hesabfa.com', 'core.hesabfa.com', 'api.hesabfa.com'].includes(url.hostname)) return 'OTHER_HOST';
+  if (/\.css$/i.test(url.pathname)) return 'HESABFA_STYLESHEET';
+  if (/\.js$/i.test(url.pathname)) return 'HESABFA_SCRIPT';
+  if (url.pathname.endsWith('/users-log')) return 'HESABFA_REPORT_PAGE';
+  return 'HESABFA_OTHER_REQUEST';
+}
+
 // Diagnostics are fixed labels and booleans, never copied text or header values.
 export function userLogDiagnostics(env = process.env) {
   const raw = typeof env.HESABFA_USER_LOG_CURL === 'string' ? env.HESABFA_USER_LOG_CURL.trim() : '';
@@ -10,6 +26,8 @@ export function userLogDiagnostics(env = process.env) {
   return {
     configured: status.configured,
     code: status.code,
+    reason: status.configured ? 'CONFIGURED' : status.reason,
+    requestKind: copiedRequestKind(raw),
     curlCommand: /^curl(?:\.exe)?\s/.test(raw),
     fetchCommand: /^fetch\s*\(/.test(raw),
     exactReportUrl: raw.includes(USER_LOG_URL),

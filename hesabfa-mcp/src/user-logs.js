@@ -12,8 +12,8 @@ export class UserLogError extends Error {
   }
 }
 
-const configError = () => new UserLogError('USER_LOG_CONFIG_INVALID',
-  'درخواست ذخیره‌شدهٔ لاگ معتبر نیست. از گزارش لاگ کاربران پالیز، Copy as cURL (bash) را دوباره در HESABFA_USER_LOG_CURL سرور ذخیره کنید؛ مقدار را در چت نفرستید.');
+const configError = (reason = 'INVALID_CURL') => Object.assign(new UserLogError('USER_LOG_CONFIG_INVALID',
+  'درخواست ذخیره‌شدهٔ لاگ معتبر نیست. از گزارش لاگ کاربران پالیز، Copy as cURL (bash) را دوباره در HESABFA_USER_LOG_CURL سرور ذخیره کنید؛ مقدار را در چت نفرستید.'), { reason });
 
 // Parse copied text as data only. No shell, eval, command substitution, or file reads.
 function curlWords(text) {
@@ -27,7 +27,7 @@ function curlWords(text) {
       continue;
     }
     if (ch === '\\' && quote !== "'") {
-      if (i + 1 >= text.length) throw configError();
+      if (i + 1 >= text.length) throw configError('TRAILING_ESCAPE');
       const next = text[++i];
       if (next === '\n') continue;
       if (next === '\r' && text[i + 1] === '\n') { i++; continue; }
@@ -49,7 +49,7 @@ function curlWords(text) {
     word += ch;
     active = true;
   }
-  if (quote) throw configError();
+  if (quote) throw configError('UNCLOSED_QUOTE');
   if (active) words.push(word);
   return words;
 }
@@ -58,42 +58,43 @@ export function readUserLogHeaders(env = process.env) {
   const raw = env[SESSION_ENV];
   if (!raw) throw new UserLogError('USER_LOG_SESSION_REQUIRED',
     'ابزار لاگ نصب است، اما نشست وب حسابفا تنظیم نشده است. Copy as cURL (bash) درخواست getUserLog در گزارش پالیز را مستقیماً در متغیر HESABFA_USER_LOG_CURL سرویس Render ذخیره کنید؛ رمز، کوکی یا درخواست را در چت نفرستید.');
-  if (typeof raw !== 'string' || raw.length > 100000) throw configError();
+  if (typeof raw !== 'string' || raw.length > 100000) throw configError('INVALID_LENGTH_OR_TYPE');
   const words = curlWords(raw);
-  if (words.shift() !== 'curl') throw configError();
+  if (words.shift() !== 'curl') throw configError('NOT_BASH_CURL');
   let url;
   const headers = {};
   function addHeader(name, value) {
     name = name.trim().toLowerCase();
     if (!ALLOWED_HEADERS.has(name)) return;
     value = value.trim();
-    if (!value || /[\r\n\0]/.test(value) || value.length > 32768 || headers[name]) throw configError();
+    if (!value || /[\r\n\0]/.test(value) || value.length > 32768 || headers[name]) throw configError('INVALID_OR_DUPLICATE_HEADER');
     headers[name] = value;
   }
   for (let i = 0; i < words.length; i++) {
     const arg = words[i];
     if (['-H', '--header', '-b', '--cookie', '--url', '-X', '--request', '--data', '--data-raw', '--data-binary', '-d'].includes(arg)) {
       const value = words[++i];
-      if (value === undefined) throw configError();
+      if (value === undefined) throw configError('MISSING_ARGUMENT');
       if (arg === '-H' || arg === '--header') {
         const colon = value.indexOf(':');
-        if (colon < 1) throw configError();
+        if (colon < 1) throw configError('INVALID_HEADER');
         addHeader(value.slice(0, colon), value.slice(colon + 1));
       } else if (arg === '-b' || arg === '--cookie') {
-        if (!value.includes('=')) throw configError();
+        if (!value.includes('=')) throw configError('INVALID_COOKIE');
         addHeader('cookie', value);
       } else if (arg === '--url') {
-        if (url) throw configError();
+        if (url) throw configError('MULTIPLE_URLS');
         url = value;
-      } else if ((arg === '-X' || arg === '--request') && value !== 'POST') throw configError();
+      } else if ((arg === '-X' || arg === '--request') && value !== 'POST') throw configError('WRONG_METHOD');
       // Captured dates, filters, and all other body content are deliberately ignored.
     } else if (['--compressed', '--http2', '--http1.1'].includes(arg)) {
       continue;
     } else if (arg === USER_LOG_URL && !url) {
       url = arg;
-    } else throw configError();
+    } else throw configError('UNSUPPORTED_ARGUMENT_OR_URL');
   }
-  if (url !== USER_LOG_URL || REQUIRED_HEADERS.some(key => !headers[key])) throw configError();
+  if (url !== USER_LOG_URL) throw configError('WRONG_URL');
+  if (REQUIRED_HEADERS.some(key => !headers[key])) throw configError('MISSING_SESSION_HEADERS');
   return headers;
 }
 
@@ -105,6 +106,7 @@ export function userLogStatus(env = process.env) {
       liveVerified: false, readOnly: true, timeZone: 'Asia/Tehran' };
   } catch (error) {
     return { configured: false, code: error.code || 'USER_LOG_CONFIG_INVALID',
+      reason: error.reason || 'SESSION_NOT_CONFIGURED',
       message: error.message, liveVerified: false, readOnly: true, timeZone: 'Asia/Tehran' };
   }
 }
