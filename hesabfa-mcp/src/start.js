@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { verifyUserLogConnection } from './user-log-check.js';
 
 const API_BASE = process.env.HESABFA_API_BASE || 'https://api.hesabfa.com/v1';
 
@@ -66,3 +67,5 @@ function configureDerivedOAuthSigningSecret() {
 await verifyHesabfaCredentials();
 configureDerivedOAuthSigningSecret();
 await import('./auth-proxy.js');
+// Keep startup available while checking the separately configured web session.
+void verifyUserLogConnection().catch(() => console.log('Hesabfa user log live check: CHECK_FAILED'));
