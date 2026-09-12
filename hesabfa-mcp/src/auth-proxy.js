@@ -5,10 +5,11 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { userLogStatus } from './user-logs.js';
+import { publicBaseUrl } from './public-url.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const INTERNAL_PORT = 3001;
-const BASE = String(process.env.PUBLIC_BASE_URL || 'https://hesabfa-readonly-mcp.onrender.com').replace(/\/+$/, '');
+const BASE = publicBaseUrl();
 const RESOURCE = `${BASE}/mcp`;
 const SCOPE = 'hesabfa:read';
 const ACCESS_TTL = 60 * 60 * 12;

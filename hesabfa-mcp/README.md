@@ -20,6 +20,10 @@ Set these directly in Render Environment; never commit them:
 Optional:
 
 - `HESABFA_API_BASE=https://api.hesabfa.com/v1`
+- `PUBLIC_BASE_URL=https://hesabfa-readonly-mcp.onrender.com` must be an HTTPS
+  origin only. A malformed value falls back to this service's default origin
+  and is never reflected in public health checks, OAuth metadata or logs.
+  Store a copied report request only in `HESABFA_USER_LOG_CURL`.
 
 ## Health endpoint
 
