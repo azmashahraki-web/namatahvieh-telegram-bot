@@ -58,7 +58,10 @@ without a website session. The API key and API login token are not substitutes.
 The deployed official app source was inspected on 2026-09-11:
 `https://app.hesabfa.com/main.5ba1dd6eb4fd43949670.js`.
 Its report service sends `start`, `end`, `userId`, `loadOptions`, the business
-key header, XSRF header and session cookies. Its response is `{data,totalCount}`.
+key header, XSRF header and session cookies. Its shared HTTP client also sends
+the browser's `Authorization` header when present (confirmed in the same app
+source on 2026-09-13). The bridge preserves that captured header; it never
+constructs it from public API credentials. Its response is `{data,totalCount}`.
 This is an internal website endpoint and may change without public API notice.
 
 ### One-time setup, and renewal when the session expires
@@ -79,8 +82,9 @@ The copied request contains private session credentials. Never paste it into
 chat, source control, issues, screenshots, logs, or documents. Only put it in
 the private environment value of this existing service. The server parses
 the copy as data; it never runs cURL, shell commands, substitutions, or files.
-Only cookie, XSRF and business key headers are accepted, and they can only be
-sent to the fixed report endpoint. Redirects are rejected. Captured dates,
+Only cookie, XSRF, business key and optional captured Authorization headers
+are accepted, and they can only be sent to the fixed report endpoint.
+Redirects are rejected. Captured dates,
 filters and payloads are ignored; each tool call supplies a fresh bounded query.
 
 The website session may expire or be revoked on sign-out. When this happens,

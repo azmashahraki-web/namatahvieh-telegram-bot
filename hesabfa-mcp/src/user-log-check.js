@@ -34,6 +34,7 @@ export function userLogDiagnostics(env = process.env) {
     cookieField: /(?:^|\s)(?:-b|--cookie)\s|\bcookie\s*:/i.test(raw),
     xsrfField: /\bx-xsrf-token\s*:/i.test(raw),
     businessField: /\bhesabfa-business-key\s*:/i.test(raw),
+    authorizationField: /\bauthorization\s*:/i.test(raw),
     cmdContinuation: /\^(?:\r?\n|[ \t]+-)/.test(raw),
     cmdQuotes: /\^"/.test(raw),
     flattenedBashContinuation: /\\[ \t]+-/.test(raw),
@@ -61,6 +62,9 @@ export async function verifyUserLogConnection({ env = process.env, request = get
       'USER_LOG_CONNECTION_FAILED', 'USER_LOG_RESPONSE_INVALID', 'USER_LOG_CONFIG_INVALID', 'USER_LOG_SESSION_REQUIRED'];
     const code = knownCodes.includes(error?.code) ? error.code : 'USER_LOG_CHECK_FAILED';
     const outcome = { code, verified: false };
+    if (code === 'USER_LOG_SESSION_EXPIRED_OR_FORBIDDEN' && [401, 403].includes(error?.httpStatus)) {
+      outcome.httpStatus = error.httpStatus;
+    }
     log(`Hesabfa user log live check: ${JSON.stringify(outcome)}`);
     return outcome;
   }

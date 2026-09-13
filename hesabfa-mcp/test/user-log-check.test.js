@@ -4,6 +4,20 @@ import { userLogDiagnostics, verifyUserLogConnection } from '../src/user-log-che
 
 const env = { HESABFA_USER_LOG_CURL: "curl 'https://core.hesabfa.com/api/report/getUserLog' -H 'x-xsrf-token: synthetic-secret-xsrf' -H 'hesabfa-business-key: synthetic-secret-business' -b 'session=synthetic-secret-cookie' --data-raw '{}'" };
 
+test('Authorization presence and rejected HTTP status are diagnosed without disclosing credentials', async () => {
+  const websiteEnv = { HESABFA_USER_LOG_CURL: env.HESABFA_USER_LOG_CURL + " -H 'Authorization: basic synthetic-secret-auth'" };
+  assert.equal(userLogDiagnostics(websiteEnv).authorizationField, true);
+  assert.equal(userLogDiagnostics(env).authorizationField, false);
+  for (const httpStatus of [401, 403]) {
+    const logs = [];
+    const result = await verifyUserLogConnection({ env: websiteEnv, log: x => logs.push(x), request: async () => {
+      throw Object.assign(new Error('synthetic-secret-response'), { code: 'USER_LOG_SESSION_EXPIRED_OR_FORBIDDEN', httpStatus });
+    } });
+    assert.deepEqual(result, { code: 'USER_LOG_SESSION_EXPIRED_OR_FORBIDDEN', verified: false, httpStatus });
+    assert.doesNotMatch(logs.join('\n'), /synthetic-secret/);
+  }
+});
+
 test('diagnostics identify a preflight request without disclosing its content', () => {
   const result = userLogDiagnostics({ HESABFA_USER_LOG_CURL: "curl 'https://core.hesabfa.com/api/report/getUserLog' -X 'OPTIONS' -H 'secret: synthetic-secret'" });
   assert.equal(result.method, 'OPTIONS');

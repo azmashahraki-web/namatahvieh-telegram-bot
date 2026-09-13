@@ -2,7 +2,9 @@
 export const USER_LOG_URL = 'https://core.hesabfa.com/api/report/getUserLog';
 const SESSION_ENV = 'HESABFA_USER_LOG_CURL';
 const REQUIRED_HEADERS = ['cookie', 'x-xsrf-token', 'hesabfa-business-key'];
-const ALLOWED_HEADERS = new Set(REQUIRED_HEADERS);
+// The website also sends Authorization when its browser auth token is present.
+// Preserve only the captured value; never substitute public API credentials.
+const ALLOWED_HEADERS = new Set([...REQUIRED_HEADERS, 'authorization']);
 
 export class UserLogError extends Error {
   constructor(code, message) {
@@ -154,8 +156,9 @@ export async function getUserLogs(args, { env = process.env, fetchImpl = fetch }
       body: JSON.stringify(request)
     });
     if ([401, 403].includes(response.status)) {
-      throw new UserLogError('USER_LOG_SESSION_EXPIRED_OR_FORBIDDEN',
-        'حسابفا دسترسی نشست را رد کرد. ورود معتبر، دسترسی گزارش لاگ کاربران و انتخاب پالیز را بررسی و درخواست ذخیره‌شده را تازه کنید. این خطا به معنی نبود فعالیت کاربران نیست.');
+      throw Object.assign(new UserLogError('USER_LOG_SESSION_EXPIRED_OR_FORBIDDEN',
+        'حسابفا دسترسی نشست را رد کرد. ورود معتبر، دسترسی گزارش لاگ کاربران و انتخاب پالیز را بررسی و درخواست ذخیره‌شده را تازه کنید. این خطا به معنی نبود فعالیت کاربران نیست.'),
+      { httpStatus: response.status });
     }
     if (!response.ok) throw new UserLogError('USER_LOG_HTTP_ERROR', `دریافت لاگ از حسابفا ناموفق بود (HTTP ${response.status}).`);
     text = await response.text();
