@@ -284,8 +284,20 @@ def install(bot):
 
     def main_menu(uid):
         kb = original_main_menu(uid)
-        if not any(row and row[0].get("callback_data") == "ai_help" for row in kb):
-            kb.insert(0, [{"text": "🤖 سؤال آزاد از دستیار هوشمند", "callback_data": "ai_help"}])
+
+        # Make AI/product knowledge the primary customer experience.
+        for row in kb:
+            for btn in row:
+                data = btn.get("callback_data")
+                if data == "consult_ac":
+                    btn["text"] = "❄️ مشاوره هوشمند کولر گازی"
+                elif data == "quote":
+                    btn["text"] = "💰 قیمت و مشخصات محصول"
+                elif data == "home_menu":
+                    btn["text"] = "🏠 مشاوره هوشمند لوازم خانگی"
+
+        if not any(any(btn.get("callback_data") == "ai_help" for btn in row) for row in kb):
+            kb.insert(0, [{"text": "🤖 سؤال آزاد | قیمت و مشخصات", "callback_data": "ai_help"}])
         return kb
 
     def handle_text(msg):
@@ -386,9 +398,17 @@ def install(bot):
 
     def handle_callback(cb):
         data = cb.get("data", "")
-        if data == "ai_help":
-            uid = int(cb.get("from", {}).get("id", 0))
-            chat_id = cb.get("message", {}).get("chat", {}).get("id", uid)
+        uid = int(cb.get("from", {}).get("id", 0))
+        chat_id = cb.get("message", {}).get("chat", {}).get("id", uid)
+
+        # These buttons now start an AI conversation instead of the old city/phone forms.
+        smart_prompts = {
+            "ai_help": "🤖 هر سؤال آزادی درباره قیمت، مشخصات فنی، انتخاب مدل، کولر گازی یا لوازم خانگی داری همین‌جا بنویس. اگر مدل دقیق را می‌دانی همان را بنویس.",
+            "consult_ac": "❄️ مشاوره هوشمند کولر فعال شد. سؤالت را مستقیم بنویس؛ مثلاً «برای ۱۲۰ متر زاهدان چه کولری پیشنهاد می‌کنی؟» یا «مشخصات نکسار ۲۴هزار چیست؟». لازم نیست اول فرم شهر و شماره را پر کنی.",
+            "quote": "💰 نام برند/مدل یا محصول را بنویس. اگر قیمت در آخرین لیست فروشگاه ثبت شده باشد، همان قیمت را همراه تاریخ و واحد اعلام می‌کنم؛ مثال: «قیمت هایسنس HIH-24TG چنده؟»",
+            "home_menu": "🏠 درباره هر لوازم خانگی سؤال داری مستقیم بنویس؛ مثلاً «مشخصات یخچال هایسنس RFC-500» یا «تلویزیون Q7Q چه امکاناتی دارد؟»."
+        }
+        if data in smart_prompts:
             bot.ensure_user(cb["from"])
             bot.answer_cb(cb["id"])
             try:
@@ -396,10 +416,24 @@ def install(bot):
             except Exception:
                 pass
             if ai_enabled():
-                return bot.send(chat_id, "🤖 هر سؤال آزادی درباره خرید، کولر گازی، لوازم خانگی، انتخاب محصول یا خدمات فروشگاه داری همین‌جا بنویس.")
+                return bot.send(chat_id, smart_prompts[data])
             p = current_provider()
             label = "Gemini" if p == "gemini" else "OpenAI"
             return bot.send(chat_id, f"دستیار هوشمند آماده است، اما اتصال {label} هنوز کامل نشده است.", main_menu(uid))
+
+        # Old home-product category buttons are also converted to AI mode.
+        if data.startswith("hp_"):
+            bot.ensure_user(cb["from"])
+            bot.answer_cb(cb["id"])
+            try:
+                bot.clear_session(uid)
+            except Exception:
+                pass
+            product = data[3:] or "لوازم خانگی"
+            if ai_enabled():
+                return bot.send(chat_id, f"🤖 درباره {product} هر سؤال داری بنویس؛ مدل، قیمت، مشخصات یا مقایسه.")
+            return bot.send(chat_id, "دستیار هوشمند فعلاً در دسترس نیست.", main_menu(uid))
+
         return original_handle_callback(cb)
 
     bot.main_menu = main_menu
