@@ -196,6 +196,35 @@ def install(bot):
             return open_chat(uid, chat["id"])
         return original_callback(callback)
 
+    def refresh_existing_panel():
+        """Refresh the already-published pinned panel after each deploy."""
+        try:
+            channel = channel_info()
+            key = f"channel_panel_message_{channel['id']}"
+            message_id = bot.cfg(key)
+            if not message_id:
+                return
+            text, keyboard = panel_content()
+            try:
+                bot.api("editMessageText", {
+                    "chat_id": channel["id"],
+                    "message_id": int(message_id),
+                    "text": text,
+                    "reply_markup": {"inline_keyboard": keyboard},
+                })
+            except HTTPError as exc:
+                error = exc.read().decode("utf-8", errors="replace")
+                if exc.code != 400 or "message is not modified" not in error.lower():
+                    raise
+            bot.api("pinChatMessage", {
+                "chat_id": channel["id"],
+                "message_id": int(message_id),
+                "disable_notification": "true",
+            })
+            print("Channel panel refreshed:", message_id, flush=True)
+        except Exception as exc:
+            print("Channel panel refresh skipped:", type(exc).__name__, flush=True)
+
     def configure_profile():
         commands = [{"command": "start", "description": "شروع و خوشامدگویی"},
                     {"command": "chat", "description": "پرسیدن سؤال از دستیار"},
@@ -211,6 +240,7 @@ def install(bot):
             bot.api("setMyDescription", {"description": description[:512], "language_code": language})
             bot.api("setMyShortDescription", {"short_description": "مشاوره خرید کولر و لوازم خانگی؛ Start را بزنید و سؤال خود را بنویسید.", "language_code": language})
         bot.api("setChatMenuButton", {"menu_button": {"type": "commands"}})
+        refresh_existing_panel()
         print("Customer chat profile and commands configured.", flush=True)
 
     bot.start = start
