@@ -330,6 +330,13 @@ def install(bot):
 
         if not any(any(btn.get("callback_data") == "ai_help" for btn in row) for row in kb):
             kb.insert(0, [{"text": "🤖 سؤال آزاد | قیمت و مشخصات", "callback_data": "ai_help"}])
+        for row in [
+            [{"text": "🕒 ساعت و آدرس فروشگاه‌ها", "callback_data": "store_hours"},
+             {"text": "💳 شرایط فروش و پرداخت", "callback_data": "sales_terms"}],
+            [{"text": "⚖️ مقایسه مدل‌ها و برندها", "callback_data": "compare_models"}],
+        ]:
+            if not any(btn.get("callback_data") == row[0]["callback_data"] for existing in kb for btn in existing):
+                kb.append(row)
         return kb
 
     def handle_text(msg):
@@ -432,6 +439,22 @@ def install(bot):
         data = cb.get("data", "")
         uid = int(cb.get("from", {}).get("id", 0))
         chat_id = cb.get("message", {}).get("chat", {}).get("id", uid)
+
+        if data in ("store_hours", "sales_terms", "compare_models"):
+            bot.ensure_user(cb["from"])
+            bot.answer_cb(cb["id"])
+            bot.clear_session(uid)
+            if data == "compare_models":
+                return bot.send(chat_id, "⚖️ نام دو برند، ظرفیت و اگر می‌دانی کد کامل مدل‌ها را بنویس؛ مثلاً «تفاوت جی‌پلاس ۲۴ حاره‌ای با هایسنس HRTC-24TQ چیست؟». مشخصات هر دو را کنار هم بررسی می‌کنم و موارد نامشخص را می‌گویم.")
+            title = "ساعت پاسخگویی و تماس نما تهویه و پالیز" if data == "store_hours" else "شرایط فروش و پرداخت"
+            try:
+                rows = aidb("knowledge_for_ai", {"limit": 100}) or []
+                entry = next((r for r in rows if r.get("title") == title), None)
+                answer = entry.get("content", "").strip() if entry else "برای اطلاع از جزئیات با فروشنده هماهنگ کنید."
+            except Exception as exc:
+                print("Store information unavailable:", type(exc).__name__, flush=True)
+                answer = "دریافت اطلاعات فعلاً ممکن نشد؛ لطفاً با فروشنده هماهنگ کنید."
+            return bot.send(chat_id, answer, [[{"text": "📞 درخواست تماس فروشنده", "callback_data": "callback"}]])
 
         # These buttons now start an AI conversation instead of the old city/phone forms.
         smart_prompts = {
