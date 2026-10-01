@@ -245,7 +245,10 @@ def install(bot):
             answer = ask_model(instructions, input_text)
             aidb("history_append", {"telegram_id": uid, "role": "user", "content": question})
             aidb("history_append", {"telegram_id": uid, "role": "assistant", "content": answer})
-            bot.send(chat_id, "🤖 " + answer)
+            offer = bot.catalog_keyboard() if hasattr(bot, "catalog_keyboard") and bot.catalog_should_offer(question) else None
+            if offer:
+                answer += "\n\n📄 برای دیدن لیست قیمت و کاتالوگ کامل، دکمه زیر را بزن."
+            bot.send(chat_id, "🤖 " + answer, offer)
         except Exception as e:
             print("AI error:", repr(e), flush=True)
             bot.send(chat_id, "فعلاً دستیار هوشمند نتوانست پاسخ بدهد. می‌توانی از «💰 استعلام قیمت» یا «📞 درخواست تماس فروشنده» استفاده کنی.", original_main_menu(uid))

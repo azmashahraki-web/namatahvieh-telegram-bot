@@ -15,7 +15,7 @@ def install(bot):
     publish_lock = threading.Lock()
 
     def chat_keyboard():
-        return {"keyboard": [[CHAT_BUTTON, MENU_BUTTON]], "resize_keyboard": True,
+        return {"keyboard": [[CHAT_BUTTON, MENU_BUTTON], ["📄 دریافت PDF کامل"]], "resize_keyboard": True,
                 "is_persistent": True, "input_field_placeholder": "سؤال خود را اینجا بنویسید…"}
 
     def open_chat(uid, chat_id, greeting=None):
@@ -34,7 +34,8 @@ def install(bot):
                   f"سلام {name}، خوش آمدی 🌷\n\n"
                   f"من دستیار هوشمند فروش و مشاوره {bot.BUSINESS_NAME} هستم.\n"
                   "درباره کولر گازی، لوازم خانگی و خدمات فروشگاه سؤالت را همین‌جا بنویس.\n\n"
-                  "برای دیدن خدمات و ثبت استعلام یا درخواست تماس، «📋 منوی اصلی» را بزن.")
+                  "برای دیدن خدمات و ثبت استعلام یا درخواست تماس، «📋 منوی اصلی» را بزن.\n"
+                  "برای دریافت لیست قیمت و کاتالوگ کامل، «📄 دریافت PDF کامل» را بزن.")
         if payload == "channel_quote":
             return open_chat(uid, chat_id,
                              "💰 نام محصول، برند یا مدل را بنویس. اگر قیمت در آخرین لیست فروشگاه باشد، قیمت و مشخصات فنی را مستقیم می‌گویم؛ مثال: «قیمت و مشخصات HID-24F4 هایسنس»")
@@ -229,6 +230,7 @@ def install(bot):
         commands = [{"command": "start", "description": "شروع و خوشامدگویی"},
                     {"command": "chat", "description": "پرسیدن سؤال از دستیار"},
                     {"command": "menu", "description": "خدمات، استعلام قیمت و درخواست تماس"},
+                    {"command": "catalog", "description": "دریافت PDF کامل لیست قیمت و کاتالوگ"},
                     {"command": "cancel", "description": "خروج از فرم و بازگشت به گفت‌وگو"},
                     {"command": "help", "description": "راهنمای پرسیدن سؤال"},
                     {"command": "privacy", "description": "حریم خصوصی"}]

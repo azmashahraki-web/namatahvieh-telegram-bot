@@ -19,6 +19,9 @@ except Exception as e:
 import channel_access
 channel_access.install(bot)
 
+import catalog_pdf
+catalog_pdf.install(bot)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
@@ -190,6 +193,9 @@ def configure_webhook():
         else:
             print("WEBHOOK_URL is missing; webhook not configured yet.", flush=True)
         bot.configure_customer_profile()
+        catalog_pdf.document_bytes()
+        bot.setcfg("catalog_pdf_ready", catalog_pdf.SHA256)
+        print("Complete customer PDF verified:", catalog_pdf.VERSION, flush=True)
         enabled = bool(hasattr(bot, "ai_enabled") and bot.ai_enabled())
         print("AI enabled:", enabled, flush=True)
         # A single small request per deployed revision; no customer messages or history writes.

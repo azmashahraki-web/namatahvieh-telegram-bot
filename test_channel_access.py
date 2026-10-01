@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 import ai_assistant
 import bot
 import channel_access
+import catalog_pdf
 
 
 class Response:
@@ -52,6 +53,7 @@ class ChannelAccessTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             ai_assistant.install(bot)
             channel_access.install(bot)
+            catalog_pdf.install(bot)
 
     def database(self, action, payload=None):
         p = payload or {}
@@ -132,7 +134,15 @@ class ChannelAccessTests(unittest.TestCase):
         bot.handle_text(self.message("/start r_friend", uid=3))
         self.assertEqual(self.users[3]["start_payload"], "r_friend")
         bot.handle_text(self.message("/start channel_quote"))
-        self.assertEqual(self.sessions[2]["step"], "quote_product")
+        self.assertNotIn(2, self.sessions)
+        quote = [d for m, d in self.calls if m == "sendMessage"][-1]
+        self.assertIn("قیمت و مشخصات", quote["text"])
+
+    def test_product_answer_offers_complete_pdf(self):
+        bot.handle_text(self.message("قیمت هایسنس HIH-24TG چنده؟"))
+        answer = [d for m, d in self.calls if m == "sendMessage"][-1]
+        self.assertIn("کاتالوگ کامل", answer["text"])
+        self.assertEqual(answer["reply_markup"]["inline_keyboard"][0][0]["callback_data"], catalog_pdf.CALLBACK)
 
     def test_chat_button_exits_form(self):
         self.sessions[2] = {"step": "ac_area", "data": {}}
