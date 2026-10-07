@@ -646,7 +646,9 @@ app.all('/mcp', (req, res) => {
   return void nodeHandler(req, res, req.body);
 });
 
-void runGoldiranImport14050712().catch((e) => console.log('GOLDIRAN_IMPORT_14050712 ERROR ' + String(e?.message || e)));\n\napp.listen(PORT, '0.0.0.0', () => {
+void runGoldiranImport14050712().catch((e) => console.log('GOLDIRAN_IMPORT_14050712 ERROR ' + String(e?.message || e)));
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Hesabfa read-only bridge listening on port ${PORT}`);
   console.log(`MCP enabled: ${MCP_ENABLED}`);
   console.log(`Hesabfa credentials configured: ${credentialsConfigured()}`);
