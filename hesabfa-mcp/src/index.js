@@ -2,6 +2,7 @@ import { createMcpExpressApp } from '@modelcontextprotocol/express';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { randomUUID } from 'node:crypto';
 import { getUserLogs, userLogStatus } from './user-logs.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -95,6 +96,32 @@ const readAnnotations = {
   idempotentHint: true,
   openWorldHint: false
 };
+
+const writeAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false
+};
+
+const destructiveAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false
+};
+
+async function hesabfaWrite(method, data, requestUniqueId) {
+  const id = requestUniqueId || randomUUID();
+  try {
+    const result = await hesabfaRequest(method, { requestUniqueId: id, ...data });
+    return { requestUniqueId: id, result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const wrapped = new Error(`${message} [requestUniqueId=${id}]`);
+    throw wrapped;
+  }
+}
 
 function buildServer() {
   const server = new McpServer({
@@ -234,6 +261,229 @@ function buildServer() {
     annotations: readAnnotations
   }, async ({ queryInfo }) => {
     try { return toolResult(await hesabfaRequest('contact/getcontacts', { queryInfo })); }
+    catch (error) { return toolError(error); }
+  });
+
+
+  // ---- Write tools ----
+  // These tools intentionally require confirm=true. Hesabfa requestUniqueId is
+  // attached to every mutation to reduce duplicate writes on retries.
+
+  server.registerTool('hesabfa_save_invoice', {
+    title: 'Save Hesabfa invoice',
+    description: 'Create or update a Hesabfa invoice. Use invoiceType 0 for sale and 1 for purchase. Dates must be Gregorian. Amounts must use the connected business base currency (IRR here). Only call after the user has clearly instructed the write.',
+    inputSchema: z.object({
+      invoice: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ invoice, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/save', { invoice }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_invoice_payment', {
+    title: 'Save Hesabfa invoice payment',
+    description: 'Record a payment/receipt against an existing invoice. Pass the invoice number/type plus payment fields supported by Hesabfa such as bankCode, cashCode, pettyCashCode, contactCode, accountPath, date, amount, transactionNumber, project, description, transactionFee, currency and currencyRate.',
+    inputSchema: z.object({
+      payment: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ payment, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/savePayment', payment, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_invoice_warehouse_receipt', {
+    title: 'Save Hesabfa invoice warehouse receipt',
+    description: 'Create warehouse receipt/issue records linked to a purchase or sales invoice. If invoice items are split across warehouses, call once per warehouse. Set deleteOldReceipts carefully because true replaces prior warehouse receipts for that invoice.',
+    inputSchema: z.object({
+      receipt: z.record(z.string(), z.unknown()),
+      deleteOldReceipts: z.boolean().optional().default(false),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ receipt, deleteOldReceipts, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/SaveWarehouseReceipt', { deleteOldReceipts, receipt }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_warehouse_receipt', {
+    title: 'Save Hesabfa warehouse receipt',
+    description: 'Create or edit an independent warehouse receipt, issue, or transfer. Use receiving=true for receipt and receiving=false for issue; destinationWarehouseCode is used for transfers.',
+    inputSchema: z.object({
+      receipt: z.record(z.string(), z.unknown()),
+      deleteOldReceipts: z.boolean().optional().default(false),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ receipt, deleteOldReceipts, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('warehouse/save', { deleteOldReceipts, receipt }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_contact', {
+    title: 'Save Hesabfa contact',
+    description: 'Create or update a Hesabfa customer, supplier, employee, or other contact.',
+    inputSchema: z.object({
+      contact: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ contact, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('contact/save', { contact }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_item', {
+    title: 'Save Hesabfa item',
+    description: 'Create or update a Hesabfa item or service.',
+    inputSchema: z.object({
+      item: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ item, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('item/save', { item }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_receipt', {
+    title: 'Save Hesabfa receipt or payment',
+    description: 'Create or update a simple Hesabfa receive/pay voucher. Pass fields supported by receipt/save including type, contactCode, amount and the bank/cash/petty-cash destination/source.',
+    inputSchema: z.object({
+      receipt: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ receipt, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('receipt/save', receipt, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_save_receipt_detailed', {
+    title: 'Save detailed Hesabfa receipt or payment',
+    description: 'Create a detailed Hesabfa receive/pay voucher using receipt/save2, including accounting items and transaction legs.',
+    inputSchema: z.object({
+      receipt: z.record(z.string(), z.unknown()),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ receipt, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('receipt/save2', receipt, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_change_invoice_paid_status', {
+    title: 'Change Hesabfa invoice paid status',
+    description: 'Mark a confirmed invoice paid or unpaid.',
+    inputSchema: z.object({
+      number: z.union([z.string(), z.number()]),
+      type: z.number().int(),
+      paid: z.boolean(),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ number, type, paid, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/changePaidStatus', { number, type, paid }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_change_invoice_sent_status', {
+    title: 'Change Hesabfa invoice sent status',
+    description: 'Mark a confirmed invoice sent or not sent.',
+    inputSchema: z.object({
+      number: z.union([z.string(), z.number()]),
+      type: z.number().int(),
+      sent: z.boolean(),
+      requestUniqueId: z.string().uuid().optional(),
+      confirm: z.literal(true)
+    }).strict(),
+    annotations: writeAnnotations
+  }, async ({ number, type, sent, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/changeSentStatus', { number, type, sent }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_delete_invoice', {
+    title: 'Delete Hesabfa invoice',
+    description: 'Permanently delete a Hesabfa invoice. Use only after the user explicitly asks to delete that exact invoice.',
+    inputSchema: z.object({
+      number: z.union([z.string(), z.number()]),
+      type: z.number().int(),
+      requestUniqueId: z.string().uuid().optional(),
+      confirmDelete: z.literal(true)
+    }).strict(),
+    annotations: destructiveAnnotations
+  }, async ({ number, type, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('invoice/delete', { number, type }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_delete_contact', {
+    title: 'Delete Hesabfa contact',
+    description: 'Permanently delete a Hesabfa contact by code. Use only after explicit user instruction.',
+    inputSchema: z.object({
+      code: z.union([z.string(), z.number()]),
+      requestUniqueId: z.string().uuid().optional(),
+      confirmDelete: z.literal(true)
+    }).strict(),
+    annotations: destructiveAnnotations
+  }, async ({ code, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('contact/delete', { code }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_delete_item', {
+    title: 'Delete Hesabfa item',
+    description: 'Permanently delete a Hesabfa item/service by code. Use only after explicit user instruction.',
+    inputSchema: z.object({
+      code: z.union([z.string(), z.number()]),
+      requestUniqueId: z.string().uuid().optional(),
+      confirmDelete: z.literal(true)
+    }).strict(),
+    annotations: destructiveAnnotations
+  }, async ({ code, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('item/delete', { code }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_delete_receipt', {
+    title: 'Delete Hesabfa receipt',
+    description: 'Permanently delete a Hesabfa receive/pay voucher by number and type. Use only after explicit user instruction.',
+    inputSchema: z.object({
+      number: z.union([z.string(), z.number()]),
+      type: z.number().int(),
+      requestUniqueId: z.string().uuid().optional(),
+      confirmDelete: z.literal(true)
+    }).strict(),
+    annotations: destructiveAnnotations
+  }, async ({ number, type, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('receipt/delete', { number, type }, requestUniqueId)); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('hesabfa_delete_warehouse_receipt', {
+    title: 'Delete Hesabfa warehouse receipt',
+    description: 'Permanently delete a Hesabfa warehouse receipt/issue by number. Use only after explicit user instruction.',
+    inputSchema: z.object({
+      number: z.union([z.string(), z.number()]),
+      requestUniqueId: z.string().uuid().optional(),
+      confirmDelete: z.literal(true)
+    }).strict(),
+    annotations: destructiveAnnotations
+  }, async ({ number, requestUniqueId }) => {
+    try { return toolResult(await hesabfaWrite('warehouse/delete', { number }, requestUniqueId)); }
     catch (error) { return toolError(error); }
   });
 
