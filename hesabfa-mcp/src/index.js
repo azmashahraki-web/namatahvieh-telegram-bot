@@ -76,6 +76,141 @@ async function hesabfaRequest(method, data = {}) {
   });
 }
 
+
+async function runGoldiranImport14050712() {
+  if (process.env.RUN_GOLDIRAN_IMPORT_14050712 !== '1') return;
+  const reference = 'GLC-1405-07-12-10PCS';
+  const date = '2026-10-04 00:00:00';
+  const contactCode = '000070';
+
+  const norm = (v) => String(v || '').toLowerCase()
+    .replace(/تلویزیون|یخچال|ساید|جی\\s*پلاس/g, '')
+    .replace(/[^a-z0-9]/g, '').replace(/^gtv/, '').replace(/^gss/, '');
+
+  async function allItems() {
+    const rows = [];
+    let skip = 0, total = null;
+    while (true) {
+      const page = await hesabfaRequest('item/getitems', { queryInfo: { Take: 100, Skip: skip } });
+      const list = Array.isArray(page?.List) ? page.List : [];
+      if (total === null) total = Number(page?.TotalCount || 0);
+      rows.push(...list); skip += list.length;
+      if (!list.length || skip >= total) break;
+    }
+    if (total !== null && rows.length !== total) throw new Error('item pagination incomplete');
+    return rows;
+  }
+
+  function exact(items, model) {
+    const key = norm(model);
+    const found = items.filter((x) =>
+      [x?.Name, x?.PurchasesTitle, x?.SalesTitle, x?.ProductCode].some((v) => norm(v) === key));
+    if (found.length > 1) throw new Error('ambiguous item ' + model);
+    return found[0] || null;
+  }
+
+  async function ensureItem(model, payload) {
+    let found = exact(await allItems(), model);
+    if (found) return { item: found, created: false };
+    const saved = await hesabfaRequest('item/save', { item: payload });
+    found = exact(await allItems(), model);
+    if (!found && saved?.Code) found = saved;
+    if (!found?.Code) throw new Error('item create not verified ' + model);
+    return { item: found, created: true };
+  }
+
+  async function existingInvoice() {
+    let skip = 0, total = null, hit = null;
+    while (true) {
+      const page = await hesabfaRequest('invoice/getinvoices',
+        { type: 1, queryInfo: { Take: 50, Skip: skip } });
+      const list = Array.isArray(page?.List) ? page.List : [];
+      if (total === null) total = Number(page?.TotalCount || 0);
+      for (const x of list) {
+        if (String(x?.Reference || '') === reference && String(x?.ContactCode || '') === contactCode) {
+          if (hit) throw new Error('duplicate reference already exists');
+          hit = x;
+        }
+      }
+      skip += list.length;
+      if (!list.length || skip >= total) break;
+    }
+    return hit;
+  }
+
+  console.log('GOLDIRAN_IMPORT_14050712 START');
+
+  const current = await allItems();
+  const tv65 = exact(current, 'GTV-65SU789N');
+  if (!tv65?.Code) throw new Error('65SU789N not found');
+
+  const tv55 = await ensureItem('GTV-55SU789NZ', {
+    name: '55 SU 789 NZ تلویزیون جی پلاس', itemType: 0, productCode: 'GTV-55SU789NZ',
+    unit: 'عدد', active: true, buyPrice: 1116720000, sellPrice: 1188000000,
+    purchasesTitle: '55 SU 789 NZ تلویزیون جی پلاس',
+    salesTitle: '55 SU 789 NZ تلویزیون جی پلاس'
+  });
+  const side = await ensureItem('GSS-R9515NS', {
+    name: 'R 9515 NS ساید جی پلاس', itemType: 0, productCode: 'GSS-R9515NS',
+    unit: 'عدد', active: true, buyPrice: 2143200000, sellPrice: 2280000000,
+    purchasesTitle: 'R 9515 NS ساید جی پلاس',
+    salesTitle: 'R 9515 NS ساید جی پلاس'
+  });
+
+  const lines = {
+    side: { RowNumber: 0, ItemCode: String(side.item.Code), Description: 'GSS-R9515NS ساید جی پلاس',
+      Quantity: 2, UnitPrice: 2280000000, Discount: 273600000, Tax: 0 },
+    tv55: { RowNumber: 1, ItemCode: String(tv55.item.Code), Description: 'GTV-55SU789NZ تلویزیون جی پلاس',
+      Quantity: 5, UnitPrice: 1188000000, Discount: 356400000, Tax: 0 },
+    tv65: { RowNumber: 2, ItemCode: String(tv65.Code), Description: 'GTV-65SU789N تلویزیون جی پلاس',
+      Quantity: 3, UnitPrice: 1460000000, Discount: 262800000, Tax: 0 }
+  };
+
+  let old = await existingInvoice();
+  let invoiceNumber = old?.Number ? String(old.Number) : '';
+  let invoiceCreated = false;
+  if (!invoiceNumber) {
+    const saved = await hesabfaRequest('invoice/save', {
+      requestUniqueId: '6b5f45b0-30d2-4e71-8a36-140507120010',
+      invoice: {
+        Number: null, InvoiceType: 1, ContactCode: contactCode, ContactTitle: 'صنایع گلدایران',
+        Date: date, DueDate: date, Reference: reference, Status: 1, Tag: 'GLC-1405-07-12',
+        InvoiceItems: [lines.side, lines.tv55, lines.tv65],
+        Note: 'خرید صنایع گلدایران طبق حواله GLC مورخ 1405/07/12. دو ساید در انبار دانشگاه 8 و تلویزیون‌ها در فروشگاه پالیز تخلیه شده‌اند. هزینه تخلیه 3,000,000 تومان بوده و تا تعیین حساب پرداخت، در بدهی این فاکتور منظور نشده است.',
+        Freight: 0, Currency: 'IRR', CurrencyRate: 1
+      }
+    });
+    invoiceNumber = String(saved?.Number || '');
+    if (!invoiceNumber) invoiceNumber = String((await existingInvoice())?.Number || '');
+    if (!invoiceNumber) throw new Error('invoice save not verified');
+    invoiceCreated = true;
+  }
+
+  const palizReceipt = await hesabfaRequest('invoice/SaveWarehouseReceipt', {
+    deleteOldReceipts: true,
+    receipt: { WarehouseCode: 11, InvoiceNumber: Number(invoiceNumber), InvoiceType: 1,
+      Date: date, Items: [lines.tv55, lines.tv65] }
+  });
+  const daneshgahReceipt = await hesabfaRequest('invoice/SaveWarehouseReceipt', {
+    deleteOldReceipts: false,
+    receipt: { WarehouseCode: 15, InvoiceNumber: Number(invoiceNumber), InvoiceType: 1,
+      Date: date, Items: [lines.side] }
+  });
+
+  const verified = await hesabfaRequest('invoice/get', { number: Number(invoiceNumber), type: 1 });
+  console.log('GOLDIRAN_IMPORT_14050712 RESULT ' + JSON.stringify({
+    ok: true, invoiceNumber, invoiceCreated,
+    itemCodes: { side: String(side.item.Code), tv55: String(tv55.item.Code), tv65: String(tv65.Code) },
+    itemsCreated: { side: side.created, tv55: tv55.created },
+    goodsNetIRR: 13987200000, unloadingIRRNotPosted: 30000000,
+    payableIRR: Number(verified?.Payable || 0),
+    receipts: {
+      paliz: String(palizReceipt?.Number || ''),
+      daneshgah8: String(daneshgahReceipt?.Number || '')
+    }
+  }));
+}
+
 function toolResult(data) {
   const json = JSON.stringify(data, null, 2);
   const max = 50000;
@@ -511,7 +646,7 @@ app.all('/mcp', (req, res) => {
   return void nodeHandler(req, res, req.body);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+void runGoldiranImport14050712().catch((e) => console.log('GOLDIRAN_IMPORT_14050712 ERROR ' + String(e?.message || e)));\n\napp.listen(PORT, '0.0.0.0', () => {
   console.log(`Hesabfa read-only bridge listening on port ${PORT}`);
   console.log(`MCP enabled: ${MCP_ENABLED}`);
   console.log(`Hesabfa credentials configured: ${credentialsConfigured()}`);
