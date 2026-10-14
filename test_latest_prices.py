@@ -21,7 +21,7 @@ class PriceTests(unittest.TestCase):
         for model, amount in prices.PRICES.items():
             self.bot.send.reset_mock()
             self.bot.handle_text(self.msg(f'قیمت {model} چنده؟'))
-            self.assertIn(f'{model}: {amount:,}', self.bot.send.call_args.args[1])
+            self.assertIn(f'{model}: {amount:,} ریال', self.bot.send.call_args.args[1])
 
     def test_model_boundaries_normalization_and_suffixes(self):
         self.assertEqual(prices.exact_prices('قیمت gtv – ۳۲sd۶۴۸n چنده؟'), [('GTV-32SD648N', 370000000)])

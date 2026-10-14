@@ -27,9 +27,9 @@ class CatalogTests(unittest.TestCase):
 
     def test_exact_full_pdf(self):
         data=catalog_pdf.document_bytes()
-        self.assertEqual(len(data),25875136)
-        self.assertEqual(hashlib.sha256(data).hexdigest(),'4269b4035d57842834063975ad0183594cbbb9d1b900fcaff924e63349ee9624')
-        self.assertEqual(catalog_pdf.VERSION, '14050719')
+        self.assertEqual(len(data),24184433)
+        self.assertEqual(hashlib.sha256(data).hexdigest(),'f30c846dbbbbed31d75e210f2a0bf06cedeeb4457690cdb45e19f5326d704097')
+        self.assertEqual(catalog_pdf.VERSION, '14050719-IRR')
         self.assertEqual(catalog_pdf.PAGES, 69)
 
     def test_requests_and_non_requests(self):
@@ -40,6 +40,7 @@ class CatalogTests(unittest.TestCase):
 
     def test_upload_then_versioned_telegram_cache(self):
         self.config['catalog_pdf_file_id_51f3192640cd090b'] = 'old-catalog-14050709'
+        self.config['catalog_pdf_file_id_4269b4035d578428'] = 'old-mixed-currency-catalog-14050719'
         self.bot.handle_text(self.msg('کاتالوگ را بفرست'))
         self.bot.handle_text(self.msg('/catalog'))
         docs=[c for c in self.calls if c[0]=='sendDocument']

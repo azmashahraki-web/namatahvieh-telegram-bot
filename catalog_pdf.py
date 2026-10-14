@@ -5,15 +5,15 @@ import threading
 from pathlib import Path
 from urllib.error import HTTPError
 
-VERSION = "14050719"
-SHA256 = "4269b4035d57842834063975ad0183594cbbb9d1b900fcaff924e63349ee9624"
-SIZE = 25875136
+VERSION = "14050719-IRR"
+SHA256 = "f30c846dbbbbed31d75e210f2a0bf06cedeeb4457690cdb45e19f5326d704097"
+SIZE = 24184433
 PAGES = 69
 BUTTON = "📄 دریافت PDF کامل"
 CALLBACK = "catalog_pdf"
-FILENAME = "Namatahvieh-Paliz-Catalog-14050719.pdf"
+FILENAME = "Namatahvieh-Paliz-Catalog-14050719-IRR.pdf"
 PARTS = ("catalog-14050719.part0", "catalog-14050719.part1", "catalog-14050719.part2")
-CAPTION = "📄 لیست قیمت و کاتالوگ کامل نما تهویه و پالیز — ۶۹ صفحه\nبه‌روزرسانی: ۱۹ مهر ۱۴۰۵\nشامل فهرست‌های تکمیلی کولر، رادیاتور و لوازم خانگی جی‌پلاس.\nتاریخ و واحد پول هر برگه ملاک است؛ قیمت و موجودی نهایی هنگام خرید با فروشگاه تأیید می‌شود."
+CAPTION = "📄 لیست قیمت و کاتالوگ کامل نما تهویه و پالیز — ۶۹ صفحه\n۱۹ مهر ۱۴۰۵ — نسخه اصلاح واحد پول\nتمام مبالغ به ریال است؛ مبلغ‌های تومانی با ضریب ۱۰ تبدیل شده‌اند.\nشامل فهرست‌های تکمیلی کولر، رادیاتور و لوازم خانگی جی‌پلاس.\nقیمت و موجودی نهایی هنگام خرید با فروشگاه تأیید می‌شود."
 
 
 def document_bytes():

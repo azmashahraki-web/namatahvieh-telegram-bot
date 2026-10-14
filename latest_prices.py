@@ -1,6 +1,7 @@
 """Customer amounts copied verbatim from the supplied Gplus sheet and dated radiator image.
 
-No currency conversion or capacity-to-model inference is allowed.
+Amounts are in IRR after the user-authorized market and catalog currency audit.
+No capacity-to-model inference is allowed.
 """
 import re
 import unicodedata
@@ -50,7 +51,7 @@ RADIATORS = {
     "ویتوریا": {3:53196000,5:88660000,7:124124000,10:177320000},
     "آلنا": {3:53196000,5:88660000,7:124124000,10:177320000},
 }
-NOTICE = "قیمت مصرف‌کننده مطابق لیست ۱۹ مهر ۱۴۰۵ است. واحد پول در فایل منبع مشخص نشده؛ مبلغ و موجودی نهایی هنگام خرید تأیید می‌شود."
+NOTICE = "تمام مبالغ به ریال است؛ قیمت مصرف‌کننده مطابق لیست ۱۹ مهر ۱۴۰۵ است. واحد فهرست با مقایسه بازار تعیین شده؛ قیمت و موجودی نهایی هنگام خرید تأیید می‌شود."
 
 
 def normalize(text):
@@ -118,7 +119,7 @@ def install(bot):
         matches += radiator_prices(raw)
         if matches:
             bot.ensure_user(message.get("from",{}))
-            rows = [f"{model}: {price:,}" for model,price in matches]
+            rows = [f"{model}: {price:,} ریال" for model,price in matches]
             rows += [f"{model}: قیمت تأییدشده برای این کد دقیق ثبت نشده است." for model in unknown]
             return bot.send(message["chat"]["id"], "💰 قیمت مصرف‌کننده:\n"+"\n".join(rows)+"\n\n"+NOTICE,
                             bot.catalog_keyboard())
@@ -127,6 +128,6 @@ def install(bot):
         if any(normalize(series) in q for series in RADIATORS):
             return bot.send(message["chat"]["id"], "نام سری و تعداد پره را دقیق بنویسید؛ قیمت تأییدشده فقط برای ۳، ۵، ۷ و ۱۰ پره ثبت شده است.")
         if re.search(r"جی\s*پلاس|GPLUS|GAC-", q) and any(w in q for w in ("کولر", "اسپلیت", "GAC-")):
-            return bot.send(message["chat"]["id"], "برگه جدید کولر جی‌پلاس قیمت را بر اساس سری و ظرفیت آورده و کد دقیق مدل و واحد پول را مشخص نکرده است. برای قیمت قطعی، عکس پلاک یا کد کامل مدل و تأیید فروشنده لازم است.")
+            return bot.send(message["chat"]["id"], "برگه جدید کولر قیمت را به ریال بر اساس سری و ظرفیت آورده و کد دقیق مدل را مشخص نکرده است. برای قیمت قطعی، عکس پلاک یا کد کامل مدل و تأیید فروشنده لازم است.")
         return original(message)
     bot.handle_text = handle_text
