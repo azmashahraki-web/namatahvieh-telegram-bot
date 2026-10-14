@@ -1,0 +1,2 @@
+assets/*.part* -text
+assets/*.pdf -text

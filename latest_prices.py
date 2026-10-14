@@ -1,5 +1,9 @@
-"""Authoritative dated customer prices, without factory prices. Source: 1405/07/19 customer catalog pages 67-69."""
+"""Customer amounts copied verbatim from the supplied Gplus sheet and dated radiator image.
+
+No currency conversion or capacity-to-model inference is allowed.
+"""
 import re
+import unicodedata
 
 DATA = """GTV-32SD648N|370000000
 GTV-43SH648NR|605000000
@@ -47,27 +51,70 @@ RADIATORS = {
     "آلنا": {3:53196000,5:88660000,7:124124000,10:177320000},
 }
 NOTICE = "قیمت مصرف‌کننده مطابق لیست ۱۹ مهر ۱۴۰۵ است. واحد پول در فایل منبع مشخص نشده؛ مبلغ و موجودی نهایی هنگام خرید تأیید می‌شود."
+
+
+def normalize(text):
+    text = unicodedata.normalize("NFKC", text or "").upper()
+    text = text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
+    text = text.replace("ي", "ی").replace("ك", "ک").replace("آ", "ا").replace("\u200c", " ")
+    for dash in "–—−‑":
+        text = text.replace(dash, "-")
+    return re.sub(r"\s*([-\.])\s*", r"\1", text)
+
+
+def exact_prices(text):
+    q = normalize(text)
+    return [(model, price) for model, price in PRICES.items()
+            if re.search(r"(?<![A-Z0-9.\-])" + re.escape(model) + r"(?![A-Z0-9\-]|\.[A-Z0-9])", q)]
+
+
+def radiator_prices(text):
+    q = normalize(text)
+    counts = set(int(n) for n in re.findall(r"(?<!\d)(\d+)\s*پره", q))
+    for word, count in (("سه", 3), ("پنج", 5), ("هفت", 7), ("ده", 10)):
+        if re.search(r"(?<!\w)" + word + r"\s+پره", q):
+            counts.add(count)
+    return [(f"رادیاتور {series} {count} پره", options[count])
+            for series, options in RADIATORS.items() if normalize(series) in q
+            for count in sorted(counts) if count in options]
+
+
 def install(bot):
     original = bot.handle_text
     def handle_text(message):
         if message.get("chat",{}).get("type") != "private":
             return original(message)
         raw = message.get("text","") or ""
-        if raw.startswith("/"):
+        if raw.strip().startswith("/"):
             return original(message)
-        q = raw.upper().replace(" ","")
-        matches = [(model,price) for model,price in PRICES.items() if re.search(r"(?<![A-Z0-9.])"+re.escape(model)+r"(?![A-Z0-9.])",q)]
+        uid = int(message.get("from", {}).get("id", 0))
+        step, _ = bot.get_session(uid)
+        if step:
+            return original(message)
+        # Keep explicit PDF requests in the document handler, even with a model in the text.
+        import catalog_pdf
+        if catalog_pdf.requests_pdf(raw):
+            return original(message)
+        q = normalize(raw)
+        price_intent = any(word in q for word in ("قیمت", "چند", "نرخ", "لیست", "مبلغ", "PRICE"))
+        matches = exact_prices(raw)
+        bare_model = len(matches) == 1 and q.strip() == matches[0][0]
+        if not price_intent and not bare_model:
+            return original(message)
+        models = re.findall(r"(?<![A-Z0-9.\-])G(?:TV|WM|DW|SS|RF|VC)-[A-Z0-9.\-]+", q)
+        unknown = [model.rstrip(".") for model in models if model.rstrip(".") not in PRICES]
+        matches += radiator_prices(raw)
         if matches:
             bot.ensure_user(message.get("from",{}))
-            rows = [f"{model}: {price:,}" for model,price in matches[:15]]
-            return bot.send(message["chat"]["id"], "💰 قیمت مصرف‌کننده جی‌پلاس:\n"+"\n".join(rows)+"\n\n"+NOTICE)
-        if any(word in raw for word in ("قیمت","چند","نرخ","لیست")):
-            for series,options in RADIATORS.items():
-                if series in raw:
-                    numbers = re.findall(r"\d+", raw.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹","0123456789")))
-                    count = next((int(n) for n in numbers if int(n) in options),None)
-                    if count:
-                        bot.ensure_user(message.get("from",{}))
-                        return bot.send(message["chat"]["id"],f"💰 رادیاتور {series} {count} پره: {options[count]:,}\n\n"+NOTICE)
+            rows = [f"{model}: {price:,}" for model,price in matches]
+            rows += [f"{model}: قیمت تأییدشده برای این کد دقیق ثبت نشده است." for model in unknown]
+            return bot.send(message["chat"]["id"], "💰 قیمت مصرف‌کننده:\n"+"\n".join(rows)+"\n\n"+NOTICE,
+                            bot.catalog_keyboard())
+        if unknown:
+            return bot.send(message["chat"]["id"], "برای این کد دقیق قیمت تأییدشده ثبت نشده است: " + "، ".join(unknown) + "\nکد کامل مدل را بررسی کنید یا از فروشنده استعلام بگیرید.")
+        if any(normalize(series) in q for series in RADIATORS):
+            return bot.send(message["chat"]["id"], "نام سری و تعداد پره را دقیق بنویسید؛ قیمت تأییدشده فقط برای ۳، ۵، ۷ و ۱۰ پره ثبت شده است.")
+        if re.search(r"جی\s*پلاس|GPLUS|GAC-", q) and any(w in q for w in ("کولر", "اسپلیت", "GAC-")):
+            return bot.send(message["chat"]["id"], "برگه جدید کولر جی‌پلاس قیمت را بر اساس سری و ظرفیت آورده و کد دقیق مدل و واحد پول را مشخص نکرده است. برای قیمت قطعی، عکس پلاک یا کد کامل مدل و تأیید فروشنده لازم است.")
         return original(message)
     bot.handle_text = handle_text
