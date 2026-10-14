@@ -22,6 +22,9 @@ channel_access.install(bot)
 import catalog_pdf
 catalog_pdf.install(bot)
 
+import latest_prices
+latest_prices.install(bot)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
