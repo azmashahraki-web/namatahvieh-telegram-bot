@@ -70,13 +70,25 @@ def exact_prices(text):
 
 def radiator_prices(text):
     q = normalize(text)
-    counts = set(int(n) for n in re.findall(r"(?<!\d)(\d+)\s*پره", q))
-    for word, count in (("سه", 3), ("پنج", 5), ("هفت", 7), ("ده", 10)):
-        if re.search(r"(?<!\w)" + word + r"\s+پره", q):
-            counts.add(count)
-    return [(f"رادیاتور {series} {count} پره", options[count])
-            for series, options in RADIATORS.items() if normalize(series) in q
-            for count in sorted(counts) if count in options]
+    names = {normalize(series): series for series in RADIATORS}
+    mentions = list(re.finditer("|".join(map(re.escape, names)), q))
+    rows = []
+    for index, mention in enumerate(mentions):
+        # Associate each count with its own series, never a cross-product of all counts.
+        segment = q[mention.end():mentions[index + 1].start() if index + 1 < len(mentions) else len(q)]
+        if len(mentions) == 1:
+            segment = q
+        counts = set(int(n) for n in re.findall(r"(?<!\d)(\d+)\s*پره", segment))
+        for word, count in (("سه", 3), ("پنج", 5), ("هفت", 7), ("ده", 10)):
+            if re.search(r"(?<!\w)" + word + r"\s+پره", segment):
+                counts.add(count)
+        series = names[mention.group()]
+        for count in sorted(counts):
+            if count in RADIATORS[series]:
+                row = (f"رادیاتور {series} {count} پره", RADIATORS[series][count])
+                if row not in rows:
+                    rows.append(row)
+    return rows
 
 
 def install(bot):

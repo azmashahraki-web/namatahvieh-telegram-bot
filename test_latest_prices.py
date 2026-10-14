@@ -69,6 +69,12 @@ class PriceTests(unittest.TestCase):
         self.bot.handle_text(self.msg('GTV-32SD648N'))
         self.assertIn('370,000,000', self.bot.send.call_args.args[1])
 
+    def test_multiple_radiator_series_keep_their_own_counts(self):
+        self.assertEqual(prices.radiator_prices('قیمت ایل پرمو سه پره و ویتوریا ۷ پره'),
+                         [('رادیاتور ایل پرمو 3 پره', 62960700), ('رادیاتور ویتوریا 7 پره', 124124000)])
+        self.assertEqual(prices.radiator_prices('قیمت ۷ پره ویتوریا'),
+                         [('رادیاتور ویتوریا 7 پره', 124124000)])
+
 
 if __name__ == '__main__':
     unittest.main()
