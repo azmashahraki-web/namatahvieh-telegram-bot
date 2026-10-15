@@ -69,6 +69,44 @@ class PriceTests(unittest.TestCase):
         self.bot.handle_text(self.msg('GTV-32SD648N'))
         self.assertIn('370,000,000', self.bot.send.call_args.args[1])
 
+    def test_category_questions_without_model_codes(self):
+        for question, prefix, count in (
+                ('قیمت تلویزیون ها چنده؟', 'GTV-', 12),
+                ('قیمت ظرف شویی های جی پلاس', 'GDW-', 10),
+                ('سایدها چند هستند؟', 'GSS-', 8),
+                ('قیمت یخچال فریزر', 'GRF-', 2),
+                ('لباس شویی ها چندند؟', 'GWM-', 4)):
+            self.bot.handle_text(self.msg(question))
+            reply = self.bot.send.call_args.args[1]
+            self.assertEqual(reply.count(prefix), count)
+            self.assertIn('موجودی هر مدل باید از فروشگاه استعلام شود', reply)
+        self.original.assert_not_called()
+
+    def test_combined_category_reply_contains_all_36_approved_models(self):
+        self.bot.handle_text(self.msg('قیمت تلویزیون ها ظرفشویی ها ساید ها و لباسشویی ها را بده'))
+        reply = self.bot.send.call_args.args[1]
+        for model, amount in prices.PRICES.items():
+            if not model.startswith('GVC-'):
+                self.assertIn(f'{model}: {amount:,} ریال', reply)
+        self.assertLess(len(reply), 4096)
+        self.original.assert_not_called()
+
+    def test_category_list_request_returns_prices_but_explicit_pdf_is_preserved(self):
+        self.bot.handle_text(self.msg('لیست قیمت تلویزیون ها را بفرست'))
+        self.assertIn('GTV-32SD648N', self.bot.send.call_args.args[1])
+        self.original.assert_not_called()
+        self.bot.handle_text(self.msg('فایل PDF قیمت تلویزیون را بفرست'))
+        self.original.assert_called_once()
+
+    def test_categories_do_not_override_exact_unknown_brand_or_specs(self):
+        self.bot.handle_text(self.msg('قیمت تلویزیون GTV-NOPE'))
+        self.assertNotIn('GTV-32SD648N', self.bot.send.call_args.args[1])
+        self.bot.handle_text(self.msg('قیمت تلویزیون GTV-32SD648N'))
+        self.assertNotIn('GTV-43SH648NR', self.bot.send.call_args.args[1])
+        self.bot.handle_text(self.msg('قیمت تلویزیون سامسونگ'))
+        self.bot.handle_text(self.msg('مشخصات لباسشویی'))
+        self.assertEqual(self.original.call_count, 2)
+
     def test_multiple_radiator_series_keep_their_own_counts(self):
         self.assertEqual(prices.radiator_prices('قیمت ایل پرمو سه پره و ویتوریا ۷ پره'),
                          [('رادیاتور ایل پرمو 3 پره', 62960700), ('رادیاتور ویتوریا 7 پره', 124124000)])

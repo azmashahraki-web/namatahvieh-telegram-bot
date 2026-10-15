@@ -69,6 +69,23 @@ def exact_prices(text):
             if re.search(r"(?<![A-Z0-9.\-])" + re.escape(model) + r"(?![A-Z0-9\-]|\.[A-Z0-9])", q)]
 
 
+def category_prices(text):
+    """Return only the approved Gplus rows, without asking customers for a code."""
+    q = normalize(text)
+    # Never present another brand's request as a Gplus quote.
+    if re.search(r"هایسنس|سامسونگ|ال\s*جی|دوو|اسنوا|پاکشوما|بوش|نکسار|HISENSE|SAMSUNG|BOSCH|\bLG\b", q):
+        return []
+    categories = (
+        ("تلویزیون جی‌پلاس", r"تلویزیون|تلوزیون|\bTV\b", ("GTV-",)),
+        ("ظرفشویی جی‌پلاس", r"ظرف\s*شوی", ("GDW-",)),
+        ("ساید و یخچال جی‌پلاس", r"ساید|یخچال|فریزر", ("GSS-", "GRF-")),
+        ("لباسشویی جی‌پلاس", r"لباس\s*شوی", ("GWM-",)),
+    )
+    return [(title, [(model, amount) for model, amount in PRICES.items()
+                     if model.startswith(prefixes)])
+            for title, pattern, prefixes in categories if re.search(pattern, q)]
+
+
 def radiator_prices(text):
     q = normalize(text)
     names = {normalize(series): series for series in RADIATORS}
@@ -106,7 +123,9 @@ def install(bot):
             return original(message)
         # Keep explicit PDF requests in the document handler, even with a model in the text.
         import catalog_pdf
-        if catalog_pdf.requests_pdf(raw):
+        categories = category_prices(raw)
+        explicit_document = re.search(r"PDF|پی\s*دی\s*اف|کاتالوگ|فایل", normalize(raw))
+        if catalog_pdf.requests_pdf(raw) and (not categories or explicit_document):
             return original(message)
         q = normalize(raw)
         price_intent = any(word in q for word in ("قیمت", "چند", "نرخ", "لیست", "مبلغ", "PRICE"))
@@ -125,6 +144,12 @@ def install(bot):
                             bot.catalog_keyboard())
         if unknown:
             return bot.send(message["chat"]["id"], "برای این کد دقیق قیمت تأییدشده ثبت نشده است: " + "، ".join(unknown) + "\nکد کامل مدل را بررسی کنید یا از فروشنده استعلام بگیرید.")
+        if categories:
+            bot.ensure_user(message.get("from", {}))
+            blocks = [title + ":\n" + "\n".join(f"{model}: {amount:,} ریال" for model, amount in rows)
+                      for title, rows in categories]
+            return bot.send(message["chat"]["id"], "💰 قیمت‌های تأییدشده جی‌پلاس:\n\n" +
+                            "\n\n".join(blocks) + "\n\n" + NOTICE, bot.catalog_keyboard())
         if any(normalize(series) in q for series in RADIATORS):
             return bot.send(message["chat"]["id"], "نام سری و تعداد پره را دقیق بنویسید؛ قیمت تأییدشده فقط برای ۳، ۵، ۷ و ۱۰ پره ثبت شده است.")
         if re.search(r"جی\s*پلاس|GPLUS|GAC-", q) and any(w in q for w in ("کولر", "اسپلیت", "GAC-")):
