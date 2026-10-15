@@ -251,6 +251,8 @@ def install(bot):
                 for h in history
             )
             knowledge_text = "\n".join("- " + x for x in knowledge) if knowledge else "- اطلاعات اختصاصی دیگری ثبت نشده است."
+            import boiler_stock
+            knowledge_text = boiler_stock.NOTICE + "\n" + knowledge_text
             instructions = f"""تو دستیار هوشمند فروش و مشاوره «{bot.BUSINESS_NAME}» در تلگرام هستی.
 فارسی روان، طبیعی، محترمانه و صمیمی پاسخ بده و مثل یک فروشنده آگاه کمک کن، نه مثل منوی ماشینی.
 قواعد قطعی:

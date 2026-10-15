@@ -25,6 +25,9 @@ catalog_pdf.install(bot)
 import latest_prices
 latest_prices.install(bot)
 
+import boiler_stock
+boiler_stock.install(bot)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()

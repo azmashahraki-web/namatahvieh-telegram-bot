@@ -27,9 +27,9 @@ class CatalogTests(unittest.TestCase):
 
     def test_exact_full_pdf(self):
         data=catalog_pdf.document_bytes()
-        self.assertEqual(len(data),24184433)
-        self.assertEqual(hashlib.sha256(data).hexdigest(),'f30c846dbbbbed31d75e210f2a0bf06cedeeb4457690cdb45e19f5326d704097')
-        self.assertEqual(catalog_pdf.VERSION, '14050719-IRR')
+        self.assertEqual(len(data),24176961)
+        self.assertEqual(hashlib.sha256(data).hexdigest(),'31d093062762890b6dee4fa96b5c21839a318474b6a3f544316e173a9c607b78')
+        self.assertEqual(catalog_pdf.VERSION, '20261015-BITA')
         self.assertEqual(catalog_pdf.PAGES, 69)
 
     def test_requests_and_non_requests(self):

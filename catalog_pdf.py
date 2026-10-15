@@ -5,15 +5,15 @@ import threading
 from pathlib import Path
 from urllib.error import HTTPError
 
-VERSION = "14050719-IRR"
-SHA256 = "f30c846dbbbbed31d75e210f2a0bf06cedeeb4457690cdb45e19f5326d704097"
-SIZE = 24184433
+VERSION = '20261015-BITA'
+SHA256 = '31d093062762890b6dee4fa96b5c21839a318474b6a3f544316e173a9c607b78'
+SIZE = 24176961
 PAGES = 69
 BUTTON = "📄 دریافت PDF کامل"
 CALLBACK = "catalog_pdf"
-FILENAME = "Namatahvieh-Paliz-Catalog-14050719-IRR.pdf"
+FILENAME = 'Namatahvieh-Paliz-Catalog-Bita-Stock-IRR.pdf'
 PARTS = ("catalog-14050719.part0", "catalog-14050719.part1", "catalog-14050719.part2")
-CAPTION = "📄 لیست قیمت و کاتالوگ کامل نما تهویه و پالیز — ۶۹ صفحه\n۱۹ مهر ۱۴۰۵ — نسخه اصلاح واحد پول\nتمام مبالغ به ریال است؛ مبلغ‌های تومانی با ضریب ۱۰ تبدیل شده‌اند.\nشامل فهرست‌های تکمیلی کولر، رادیاتور و لوازم خانگی جی‌پلاس.\nقیمت و موجودی نهایی هنگام خرید با فروشگاه تأیید می‌شود."
+CAPTION = "📄 لیست قیمت و کاتالوگ کامل نما تهویه و پالیز — ۶۹ صفحه\nنسخه جدید قیمت و موجودی پکیج بی‌تا\nتمام مبالغ به ریال است. فقط پکیج بی‌تا ۲۲، ۲۴ و ۲۶ موجود؛ سایر پکیج‌های بوتان و تمام پکیج‌های ایران‌رادیاتور ناموجودند.\nشامل فهرست‌های تکمیلی کولر، رادیاتور و لوازم خانگی جی‌پلاس.\nقیمت و موجودی نهایی هنگام خرید با فروشگاه تأیید می‌شود."
 
 
 def document_bytes():
