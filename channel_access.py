@@ -29,6 +29,9 @@ def install(bot):
         uid = int(user["id"])
         if payload == "channel_setup":
             return preview_panel(uid, chat_id)
+        if payload == "tax100":
+            return open_chat(uid, chat_id,
+                             "📌 راهنمای ساده تبصره ماده ۱۰۰ عملکرد ۱۴۰۴ فعال شد.\n\nهر سؤالی داری به زبان خودت بنویس؛ مثلاً «فروشم ۳۰ میلیارد بوده چه کار کنم؟»، «مالیاتم صفر شده لازم است تأیید کنم؟» یا «تا کی وقت دارم؟». پاسخ را بر اساس دستورالعمل شماره 200/1405/60 خیلی ساده توضیح می‌دهم.")
         name = user.get("first_name", "").strip()
         open_chat(uid, chat_id,
                   f"سلام {name}، خوش آمدی 🌷\n\n"
@@ -171,10 +174,12 @@ def install(bot):
         chat_id = msg["chat"]["id"]
         text = (msg.get("text") or "").strip()
         command = text.split(maxsplit=1)[0].split("@", 1)[0] if text.startswith("/") else text
-        if command in ("/chat", "/cancel", CHAT_BUTTON, "/menu", MENU_BUTTON, "/channel_panel", "/help"):
+        if command in ("/chat", "/cancel", CHAT_BUTTON, "/menu", MENU_BUTTON, "/channel_panel", "/help", "/tax100"):
             bot.ensure_user(user)
             if command == "/channel_panel":
                 return preview_panel(uid, chat_id)
+            if command == "/tax100":
+                return open_chat(uid, chat_id, "📌 درباره تبصره ماده ۱۰۰ عملکرد ۱۴۰۴ هر سؤالی داری همین‌جا بنویس. پاسخ را خیلی ساده و بر اساس دستورالعمل شماره 200/1405/60 می‌دهم.")
             if command in ("/menu", MENU_BUTTON):
                 bot.clear_session(uid)
                 return bot.send(chat_id, "خدمات فروشگاه؛ برای سؤال آزاد /chat را بزن:", bot.main_menu(uid))
@@ -226,11 +231,45 @@ def install(bot):
         except Exception as exc:
             print("Channel panel refresh skipped:", type(exc).__name__, flush=True)
 
+    def publish_tax100_announcement():
+        marker = "tax100_post_200_1405_60_v1"
+        if bot.cfg(marker):
+            return
+        try:
+            channel = channel_info()
+            username = bot.bot_username()
+            text = (
+                "📢 دستورالعمل جدید تبصره ماده ۱۰۰ برای عملکرد سال ۱۴۰۴\n\n"
+                "اگر صاحب مغازه، فروشگاه، مطب یا کسب‌وکار شخصی هستید، این چند نکته مهم را بدانید:\n\n"
+                "✅ اگر فروش خالص سال ۱۴۰۴ شما حداکثر ۷۲ میلیارد تومان باشد و فرم مالیات مقطوع در سامانه برایتان بارگذاری شود، می‌توانید مشمول مالیات مقطوع تبصره ۱۰۰ شوید و در این حالت معمولاً اظهارنامه عادی لازم نیست.\n\n"
+                "⚠️ اگر عدد فروش اعلام‌شده توسط سازمان کمتر از فروش واقعی شماست، باید فروش واقعی را وارد کنید.\n\n"
+                "❌ اگر مالیات مقطوع را قبول ندارید، طبق دستورالعمل حداکثر تا ۳۰ آبان ۱۴۰۵ باید اظهارنامه مالیاتی تسلیم کنید.\n\n"
+                "💳 مهلت پرداخت مالیات هم تا ۳۰ آبان ۱۴۰۵ است و برای بعضی مؤدیان امکان تقسیط پیش‌بینی شده است.\n\n"
+                "0️⃣ اگر مالیات فرم تبصره ۱۰۰ شما «صفر» محاسبه شده، طبق دستورالعمل نیازی به مراجعه و تأیید فرم صفر ندارید.\n\n"
+                "🚫 اگر پرونده شما تمام سال غیرفعال بوده و این موضوع اعلام شده باشد، تسلیم اظهارنامه یا فرم تبصره ۱۰۰ برای آن پرونده موضوعیت ندارد.\n\n"
+                "🏦 اگر بخشی از واریزی‌های بانکی واقعاً درآمد شما نیست، امکان اعلام آن پیش‌بینی شده؛ اما باید بتوانید مدارک غیرتجاری بودنش را ارائه کنید.\n\n"
+                "📌 شماره دستورالعمل: 200/1405/60 - تاریخ: ۱۴۰۵/۰۷/۲۹\n"
+                "🟢 به‌روزرسانی ۲ آبان: اعلام شده بارگذاری فرم‌ها تدریجی است و تا ۱۵ آبان تکمیل می‌شود.\n\n"
+                "سؤال شخصی داری؟ مثلاً «فروشم ۲۰ میلیارد بوده، چه کار کنم؟» یا «مالیات صفر شده، لازم است کاری کنم؟» دکمه زیر را بزن؛ ربات خیلی ساده توضیح می‌دهد."
+            )
+            keyboard = [[{"text": "📌 سؤال درباره تبصره ماده ۱۰۰", "url": f"https://t.me/{username}?start=tax100"}],
+                        [{"text": "🧾 ورود به سامانه مالیاتی", "url": "https://my.tax.gov.ir"}]]
+            sent = bot.api("sendMessage", {
+                "chat_id": channel["id"],
+                "text": text,
+                "reply_markup": {"inline_keyboard": keyboard}
+            })
+            bot.setcfg(marker, str(sent.get("message_id", "1")))
+            print("Tax100 announcement published:", sent.get("message_id"), flush=True)
+        except Exception as exc:
+            print("Tax100 announcement failed:", type(exc).__name__, flush=True)
+
     def configure_profile():
         commands = [{"command": "start", "description": "شروع و خوشامدگویی"},
                     {"command": "chat", "description": "پرسیدن سؤال از دستیار"},
                     {"command": "menu", "description": "خدمات، استعلام قیمت و درخواست تماس"},
                     {"command": "catalog", "description": "دریافت PDF کامل لیست قیمت و کاتالوگ"},
+                    {"command": "tax100", "description": "راهنمای ساده تبصره ماده ۱۰۰ عملکرد ۱۴۰۴"},
                     {"command": "cancel", "description": "خروج از فرم و بازگشت به گفت‌وگو"},
                     {"command": "help", "description": "راهنمای پرسیدن سؤال"},
                     {"command": "privacy", "description": "حریم خصوصی"}]
@@ -243,6 +282,7 @@ def install(bot):
             bot.api("setMyShortDescription", {"short_description": "مشاوره خرید کولر و لوازم خانگی؛ Start را بزنید و سؤال خود را بنویسید.", "language_code": language})
         bot.api("setChatMenuButton", {"menu_button": {"type": "commands"}})
         refresh_existing_panel()
+        publish_tax100_announcement()
         print("Customer chat profile and commands configured.", flush=True)
 
     bot.start = start
