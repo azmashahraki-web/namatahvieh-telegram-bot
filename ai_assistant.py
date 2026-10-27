@@ -177,7 +177,7 @@ def install(bot):
             "model": OPENAI_MODEL,
             "instructions": instructions,
             "input": input_text,
-            "max_output_tokens": 700,
+            "max_output_tokens": 1400,
             "store": False,
         }
         req = Request(
@@ -213,8 +213,8 @@ def install(bot):
             "system_instruction": {"parts": [{"text": instructions}]},
             "contents": [{"role": "user", "parts": [{"text": input_text}]}],
             "generationConfig": {
-                "maxOutputTokens": 700,
-                "temperature": 0.35,
+                "maxOutputTokens": 1400,
+                "temperature": 0.15,
             },
         }
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
@@ -543,6 +543,8 @@ def install(bot):
     bot.handle_text = handle_text
     bot.handle_callback = handle_callback
     bot.ai_enabled = ai_enabled
+    bot.tax_ai_model = ask_model
+    bot.tax_ai_db = aidb
     bot.ai_provider = current_provider
     bot.ai_store_gemini_key = store_gemini_key
     bot.ai_test_gemini_key = test_gemini_key
