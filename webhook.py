@@ -209,19 +209,8 @@ def configure_webhook():
         print("Complete customer PDF verified:", catalog_pdf.VERSION, flush=True)
         enabled = bool(hasattr(bot, "ai_enabled") and bot.ai_enabled())
         print("AI enabled:", enabled, flush=True)
-        # A single small request per deployed revision; no customer messages or history writes.
-        revision = os.getenv("RENDER_GIT_COMMIT", "")
-        if enabled and revision and bot.cfg("ai_checked_revision") != revision:
-            result = "failed"
-            try:
-                result = "passed" if bot.ai_connection_check() else "failed"
-            except Exception as exc:
-                code = re.match(r"^(Gemini|OpenAI) (\d{3}):", str(exc))
-                result = "failed:" + (code.group(2) if code else type(exc).__name__)
-            bot.setcfg("ai_connection_check", result)
-            bot.setcfg("ai_checked_revision", revision)
-            bot.setcfg("ai_checked_at", int(time.time()))
-            print("AI connection check:", result, flush=True)
+        # AI model connectivity is checked on customer requests, not during
+        # Render startup; a stalled provider call must not delay deployment.
         # Network-intensive model quality sweeps are intentionally not run during
         # boot: the Render health check must never depend on five AI requests.
 
