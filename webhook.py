@@ -222,15 +222,9 @@ def configure_webhook():
             bot.setcfg("ai_checked_revision", revision)
             bot.setcfg("ai_checked_at", int(time.time()))
             print("AI connection check:", result, flush=True)
-        if enabled and revision and hasattr(bot, "tax_quality_check") and bot.cfg("tax_quality_revision") != revision:
-            try:
-                results = bot.tax_quality_check()
-                passed = sum(1 for _, ok in results if ok)
-                print("Tax quality summary:", passed, "/", len(results), flush=True)
-            except Exception as exc:
-                print("Tax quality test unavailable:", type(exc).__name__, flush=True)
-            finally:
-                bot.setcfg("tax_quality_revision", revision)
+        # Network-intensive model quality sweeps are intentionally not run during
+        # boot: the Render health check must never depend on five AI requests.
+
     except Exception as e:
         print("Webhook configuration failed:", repr(e), flush=True)
 
