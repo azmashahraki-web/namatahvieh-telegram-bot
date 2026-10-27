@@ -272,6 +272,38 @@ def install(bot):
             print("Tax panel refresh skipped:", type(exc).__name__, flush=True)
         print("Tax-only profile configured", flush=True)
 
+    def quality_check():
+        # Anonymous, synthetic scenarios only; never reads customer messages.
+        checks = [
+            ("eligibility", "فروش من ۳۰ میلیارد تومان بوده؛ آیا قطعاً تبصره ۱۰۰ می‌گیرم؟",
+             ("فرم", "بند ۱")),
+            ("zero", "مالیات فرم تبصره ۱۰۰ من صفر شده؛ باید وارد سامانه شوم و تأیید کنم؟",
+             ("صفر", "بند ۱۸")),
+            ("deadline", "مالیات مقطوع را قبول ندارم؛ تا کی وقت دارم و چه باید بکنم؟",
+             ("۳۰ آبان", "اظهارنامه")),
+            ("penalty", "بخشودگی ۹۸ درصد یعنی مالیات من فقط ۲ درصد است؟",
+             ("جریمه", "بند ۸")),
+            ("bank", "به حسابم پول امانت یا قرض آمده؛ باید برای تبصره ۱۰۰ چه کنم؟",
+             ("مدارک", "تراکنش")),
+        ]
+        result = []
+        if not hasattr(bot, "tax_ai_model") or not bot.ai_enabled():
+            print("Tax model quality tests skipped: AI unavailable", flush=True)
+            return result
+        for name, query, expected in checks:
+            try:
+                ans = bot.tax_ai_model(INSTRUCTIONS, EVIDENCE + "\n\nسؤال کاربر:\n" + query)
+                ok = all(token in ans for token in expected) and not is_sale(ans)
+                result.append((name, ok))
+                print("Tax model check", name, "PASS" if ok else "REVIEW",
+                      "sample:", ans.replace("\n", " ")[:190], flush=True)
+            except Exception as exc:
+                print("Tax model check", name, "ERROR", type(exc).__name__, flush=True)
+                result.append((name, False))
+        return result
+
+    bot.tax_quality_check = quality_check
+
     # Override last: all old marketing/sales buttons and scripts are unreachable.
     bot.main_menu = lambda uid: menu()
     bot.start = welcome
