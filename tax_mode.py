@@ -129,6 +129,17 @@ def install(bot):
     def ask(uid, chat_id, question):
         exact = tax_accuracy.confident_answer(question)
         if exact:
+            # Keep short tax-specific context: follow-ups like «بله، فرم آمده»
+            # must relate to the previous verified question rather than old
+            # appliance conversations.
+            if hasattr(bot, "tax_ai_db") and not tax_accuracy.sale_only(question):
+                try:
+                    bot.tax_ai_db("history_append", {"telegram_id": uid, "role": "user",
+                                                     "content": TAX_TAG + " " + question[:1000]})
+                    bot.tax_ai_db("history_append", {"telegram_id": uid, "role": "assistant",
+                                                     "content": TAX_TAG + " " + exact[:2500]})
+                except Exception as exc:
+                    print("Tax fixed answer history skipped:", type(exc).__name__, flush=True)
             return send(chat_id, exact, True)
         history = []
         if hasattr(bot, "tax_ai_db"):
