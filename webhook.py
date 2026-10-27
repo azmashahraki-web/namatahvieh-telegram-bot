@@ -28,6 +28,11 @@ latest_prices.install(bot)
 import boiler_stock
 boiler_stock.install(bot)
 
+# Temporary public-service mode: tax questions only. Install LAST so no older
+# sales flows can intercept messages, callback buttons or contact updates.
+import tax_mode
+tax_mode.install(bot)
+
 PORT = int(os.getenv("PORT", "10000"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
